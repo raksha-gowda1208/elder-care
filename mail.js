@@ -94,7 +94,7 @@ function humanizeError(err) {
     return 'Could not resolve SMTP server. Check internet connection or host address.';
   }
   if (msg.includes('ETIMEDOUT') || msg.includes('timeout') || msg.includes('ESOCKETTIMEDOUT')) {
-    return 'Cloud free tiers (Railway & Render) block raw SMTP ports (465 & 587). To receive email alerts, add a free RESEND_API_KEY (from resend.com) in Gmail Alert Setup or Environment to deliver over HTTPS.';
+    return 'Cloud free tiers block raw SMTP ports (465 & 587). To receive email alerts on Railway, add a free RESEND_API_KEY (from resend.com) in Gmail Alert Setup or Railway Variables to deliver over HTTPS.';
   }
   if (msg.includes('ECONNREFUSED')) {
     return 'Connection refused by SMTP server on specified port.';
@@ -103,7 +103,7 @@ function humanizeError(err) {
 }
 
 // ---------------------------------------------------------
-// HTTPS Email API Providers (Bypass Render Free Tier Port Restrictions)
+// HTTPS Email API Providers (Bypass Cloud SMTP Port Restrictions)
 // ---------------------------------------------------------
 
 async function sendViaResend(apiKey, to, subject, text, html, customFrom) {
@@ -206,7 +206,7 @@ async function sendViaBrevo(apiKey, to, subject, text, html, senderEmail, sender
 }
 
 // ---------------------------------------------------------
-// Raw SMTP Transporter (for local dev, paid Render, or SMTP-enabled hosts)
+// Raw SMTP Transporter (for local dev or SMTP-enabled hosts)
 // ---------------------------------------------------------
 
 function createTransportForPort(creds, port) {
@@ -223,7 +223,7 @@ function createTransportForPort(creds, port) {
       user: creds.user,
       pass: creds.pass
     },
-    // Increased timeouts for cloud hosting (Render, Heroku, AWS containers)
+    // Increased timeouts for cloud hosting (Railway, AWS containers)
     connectionTimeout: 20000,
     greetingTimeout: 20000,
     socketTimeout: 20000,
@@ -262,7 +262,7 @@ async function sendAlertEmail(to, subject, text, html, customConfig = null) {
 
   const creds = getCredentials(customConfig);
 
-  // 1. Check for HTTPS Email APIs first (Port 443 is NEVER blocked by Render Free Tier)
+  // 1. Check for HTTPS Email APIs first (Port 443 is NEVER blocked on Railway)
   if (creds.resendApiKey) {
     return await sendViaResend(creds.resendApiKey, to, subject, text, html, creds.from);
   }

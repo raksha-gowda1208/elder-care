@@ -305,12 +305,12 @@
           </label>
 
           <div style="margin:16px 0;padding:14px;background:#0f172a;border:1px solid #38bdf8;border-radius:8px;">
-            <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#38bdf8;">⚡ Using Render Free Tier? (Recommended Fix)</p>
+            <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#38bdf8;">⚡ Cloud Email Delivery Setup (Recommended for Railway)</p>
             <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;line-height:1.4;">
-              Render's Free Tier blocks raw SMTP ports (465/587). To receive email alerts reliably on Render, paste a free key from <a href="https://resend.com" target="_blank" style="color:#2dd4bf;text-decoration:underline;font-weight:700;">Resend.com ↗</a> (100% free, takes 20s):
+              Cloud hosting blocks raw SMTP ports (465/587). To receive email alerts reliably, paste a free key from <a href="https://resend.com" target="_blank" style="color:#2dd4bf;text-decoration:underline;font-weight:700;">Resend.com ↗</a> (100% free, takes 20s):
             </p>
             <label class="field-label" style="margin:0;color:#e2e8f0;font-size:12px;">Resend API Key
-              <input id="cfgResendKey" type="password" placeholder="re_•••••••• (Bypasses Render port block)">
+              <input id="cfgResendKey" type="password" placeholder="re_•••••••• (Enables instant email alerts on Railway)">
             </label>
           </div>
 
@@ -853,9 +853,9 @@
       document.getElementById('cfgSmtpPass').value = '';
       document.getElementById('cfgResendKey').value = '';
       if (s.has_resend_key) {
-        settingsMsg.innerHTML = '<span style="color:#2dd4bf">✓ Resend HTTPS Email API is active (bypasses Render port blocks).</span>';
+        settingsMsg.innerHTML = '<span style="color:#2dd4bf">✓ Resend HTTPS Email API is active (bypasses cloud SMTP port blocks).</span>';
       } else if (s.has_smtp_pass) {
-        settingsMsg.innerHTML = '<span style="color:#2dd4bf">✓ Gmail App Password is configured. (If on Render free tier and SMTP times out, add Resend Key below).</span>';
+        settingsMsg.innerHTML = '<span style="color:#2dd4bf">✓ Gmail App Password is configured. (If SMTP times out on cloud hosting, add Resend Key below).</span>';
       } else {
         settingsMsg.innerHTML = '<span style="color:#fbbf24">⚠️ Add a free Resend API Key (or Gmail & App Password) to receive emergency fall emails.</span>';
       }
