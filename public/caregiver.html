@@ -304,12 +304,22 @@
             <input id="cfgPhone" placeholder="+1 (555) 000-0000">
           </label>
 
+          <div style="margin:16px 0;padding:14px;background:#0f172a;border:1px solid #38bdf8;border-radius:8px;">
+            <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#38bdf8;">⚡ Using Render Free Tier? (Recommended Fix)</p>
+            <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;line-height:1.4;">
+              Render's Free Tier blocks raw SMTP ports (465/587). To receive email alerts reliably on Render, paste a free key from <a href="https://resend.com" target="_blank" style="color:#2dd4bf;text-decoration:underline;font-weight:700;">Resend.com ↗</a> (100% free, takes 20s):
+            </p>
+            <label class="field-label" style="margin:0;color:#e2e8f0;font-size:12px;">Resend API Key
+              <input id="cfgResendKey" type="password" placeholder="re_•••••••• (Bypasses Render port block)">
+            </label>
+          </div>
+
           <input type="hidden" id="cfgSmtpHost" value="smtp.gmail.com">
           <input type="hidden" id="cfgSmtpPort" value="587">
           <input type="hidden" id="cfgSmtpFrom" value="ElderCare Safety Alerts">
 
           <div class="settings-actions">
-            <button type="button" class="primary-btn" id="saveSettingsBtn">💾 Connect & Save Gmail</button>
+            <button type="button" class="primary-btn" id="saveSettingsBtn">💾 Connect & Save Settings</button>
             <button type="button" class="action-btn gmail-test-btn" id="testEmailBtn">📧 Send Test Email to My Gmail Now</button>
           </div>
           <p id="settingsMsg" class="settings-status-msg"></p>
@@ -841,15 +851,21 @@
       document.getElementById('cfgPhone').value = s.phone || '';
       document.getElementById('cfgSmtpUser').value = s.smtp_user || s.email || '';
       document.getElementById('cfgSmtpPass').value = '';
-      settingsMsg.innerHTML = s.has_smtp_pass
-        ? '<span style="color:#2dd4bf">✓ Gmail App Password is configured and ready.</span>'
-        : '<span style="color:#fbbf24">⚠️ Enter your Gmail & 16-letter App Password to receive alerts directly in Gmail.</span>';
+      document.getElementById('cfgResendKey').value = '';
+      if (s.has_resend_key) {
+        settingsMsg.innerHTML = '<span style="color:#2dd4bf">✓ Resend HTTPS Email API is active (bypasses Render port blocks).</span>';
+      } else if (s.has_smtp_pass) {
+        settingsMsg.innerHTML = '<span style="color:#2dd4bf">✓ Gmail App Password is configured. (If on Render free tier and SMTP times out, add Resend Key below).</span>';
+      } else {
+        settingsMsg.innerHTML = '<span style="color:#fbbf24">⚠️ Add a free Resend API Key (or Gmail & App Password) to receive emergency fall emails.</span>';
+      }
     };
 
     closeSettingsBtn.onclick = () => settingsModal.classList.add('hidden');
 
     saveSettingsBtn.onclick = async () => {
-      settingsMsg.textContent = 'Connecting and saving Gmail settings…';
+      settingsMsg.textContent = 'Connecting and saving settings…';
+      const resendKey = document.getElementById('cfgResendKey').value.trim();
       const body = {
         email: document.getElementById('cfgEmail').value.trim(),
         phone: document.getElementById('cfgPhone').value.trim(),
@@ -859,9 +875,12 @@
         smtp_pass: document.getElementById('cfgSmtpPass').value,
         smtp_from: `ElderCare Fall Alerts <${document.getElementById('cfgSmtpUser').value.trim()}>`
       };
+      if (resendKey) {
+        body.resend_api_key = resendKey;
+      }
       const res = await api('/settings', 'POST', body);
       if (res.ok) {
-        settingsMsg.innerHTML = '<span style="color:#10b981">✓ Gmail credentials saved successfully!</span>';
+        settingsMsg.innerHTML = '<span style="color:#10b981">✓ Settings saved successfully!</span>';
         setTimeout(() => settingsModal.classList.add('hidden'), 1400);
       } else {
         settingsMsg.innerHTML = `<span style="color:#ef4444">Error: ${res.error || 'Failed to save'}</span>`;
@@ -869,18 +888,22 @@
     };
 
     testEmailBtn.onclick = async () => {
-      settingsMsg.textContent = 'Attempting direct delivery to your Gmail inbox…';
+      settingsMsg.textContent = 'Attempting emergency test email delivery…';
       const res = await api('/settings/test-email', 'POST');
       if (res.sent) {
-        if (res.isGmail) {
+        if (res.service === 'resend') {
+          settingsMsg.innerHTML = `<span style="color:#10b981">✓ Verified! Emergency email delivered via Resend HTTPS (${res.recipient || ''}). Check your Gmail inbox!</span>`;
+        } else if (res.service === 'brevo') {
+          settingsMsg.innerHTML = `<span style="color:#10b981">✓ Verified! Emergency email delivered via Brevo HTTPS (${res.recipient || ''}). Check your Gmail inbox!</span>`;
+        } else if (res.isGmail) {
           settingsMsg.innerHTML = `<span style="color:#10b981">✓ Verified! Emergency test email delivered directly to your Gmail inbox (${res.recipient || ''}). Check your Gmail!</span>`;
         } else if (res.previewUrl) {
-          settingsMsg.innerHTML = `<span style="color:#fbbf24">✓ Simulated test email dispatched. <a href="${res.previewUrl}" target="_blank" style="text-decoration:underline;color:#5eead4;">View sent preview email ↗</a><br>To receive directly in your real Gmail inbox, enter your Gmail & 16-character App Password above.</span>`;
+          settingsMsg.innerHTML = `<span style="color:#fbbf24">✓ Simulated test email dispatched. <a href="${res.previewUrl}" target="_blank" style="text-decoration:underline;color:#5eead4;">View sent preview email ↗</a></span>`;
         } else {
           settingsMsg.innerHTML = `<span style="color:#10b981">✓ Test email delivered! Check your inbox.</span>`;
         }
       } else {
-        settingsMsg.innerHTML = `<span style="color:#ef4444">Delivery failed: ${res.reason || 'Check Gmail credentials'}</span>`;
+        settingsMsg.innerHTML = `<span style="color:#ef4444">Delivery failed: ${res.reason || 'Check credentials'}</span>`;
       }
     };
 

@@ -70,7 +70,19 @@ function getCredentials(customConfig) {
     (user ? `"ElderCare Emergency Safety" <${user}>` : '')
   ).trim();
 
-  return { user, pass, host, port, from };
+  const resendApiKey = (
+    customConfig?.resend_api_key ||
+    process.env.RESEND_API_KEY ||
+    ''
+  ).trim();
+
+  const brevoApiKey = (
+    customConfig?.brevo_api_key ||
+    process.env.BREVO_API_KEY ||
+    ''
+  ).trim();
+
+  return { user, pass, host, port, from, resendApiKey, brevoApiKey };
 }
 
 function humanizeError(err) {
@@ -82,13 +94,120 @@ function humanizeError(err) {
     return 'Could not resolve SMTP server. Check internet connection or host address.';
   }
   if (msg.includes('ETIMEDOUT') || msg.includes('timeout') || msg.includes('ESOCKETTIMEDOUT')) {
-    return 'SMTP connection timed out after 20s. Render or host network may be throttling SMTP connections.';
+    return 'Render Free Tier blocks raw SMTP ports (465 & 587). Add a free RESEND_API_KEY (from resend.com) in Settings or Environment to deliver via HTTPS Port 443.';
   }
   if (msg.includes('ECONNREFUSED')) {
     return 'Connection refused by SMTP server on specified port.';
   }
   return msg;
 }
+
+// ---------------------------------------------------------
+// HTTPS Email API Providers (Bypass Render Free Tier Port Restrictions)
+// ---------------------------------------------------------
+
+async function sendViaResend(apiKey, to, subject, text, html, customFrom) {
+  const startMs = Date.now();
+  // On Resend free accounts without domain verification, sender is onboarding@resend.dev
+  // and delivers to the account owner's email address.
+  const from = customFrom && !customFrom.toLowerCase().includes('gmail.com')
+    ? customFrom
+    : 'ElderCare Emergency Alert <onboarding@resend.dev>';
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject,
+        html: html || `<p>${text.replace(/</g, '&lt;')}</p>`,
+        text
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    const durationSec = ((Date.now() - startMs) / 1000).toFixed(1);
+
+    if (res.ok && data.id) {
+      console.log(`[RESEND HTTPS DELIVERED in ${durationSec}s] Alert dispatched to ${to} via Port 443`);
+      return {
+        sent: true,
+        service: 'resend',
+        messageId: data.id,
+        recipient: to,
+        durationSec,
+        isHttpsApi: true
+      };
+    }
+
+    const errMsg = data.message || `HTTP ${res.status}: ${JSON.stringify(data)}`;
+    console.error('[RESEND API ERROR]', errMsg);
+    return {
+      sent: false,
+      reason: `Resend API rejected delivery: ${errMsg}`
+    };
+  } catch (e) {
+    console.error('[RESEND FETCH FAILED]', e.message);
+    return { sent: false, reason: `Resend connection failed: ${e.message}` };
+  }
+}
+
+async function sendViaBrevo(apiKey, to, subject, text, html, senderEmail, senderName) {
+  const startMs = Date.now();
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey.trim(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: {
+          name: senderName || 'ElderCare Safety',
+          email: senderEmail || 'alerts@eldercare.internal'
+        },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html || `<p>${text.replace(/</g, '&lt;')}</p>`,
+        textContent: text
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    const durationSec = ((Date.now() - startMs) / 1000).toFixed(1);
+
+    if (res.ok && (data.messageId || data.id)) {
+      console.log(`[BREVO HTTPS DELIVERED in ${durationSec}s] Alert dispatched to ${to} via Port 443`);
+      return {
+        sent: true,
+        service: 'brevo',
+        messageId: data.messageId || data.id,
+        recipient: to,
+        durationSec,
+        isHttpsApi: true
+      };
+    }
+
+    const errMsg = data.message || `HTTP ${res.status}`;
+    console.error('[BREVO API ERROR]', errMsg);
+    return {
+      sent: false,
+      reason: `Brevo API rejected: ${errMsg}`
+    };
+  } catch (e) {
+    console.error('[BREVO FETCH FAILED]', e.message);
+    return { sent: false, reason: `Brevo connection failed: ${e.message}` };
+  }
+}
+
+// ---------------------------------------------------------
+// Raw SMTP Transporter (for local dev, paid Render, or SMTP-enabled hosts)
+// ---------------------------------------------------------
 
 function createTransportForPort(creds, port) {
   const isGmail = creds.host.toLowerCase().includes('gmail') || creds.user.toLowerCase().endsWith('@gmail.com');
@@ -143,7 +262,16 @@ async function sendAlertEmail(to, subject, text, html, customConfig = null) {
 
   const creds = getCredentials(customConfig);
 
-  // If credentials are missing, check if test simulator is enabled
+  // 1. Check for HTTPS Email APIs first (Port 443 is NEVER blocked by Render Free Tier)
+  if (creds.resendApiKey) {
+    return await sendViaResend(creds.resendApiKey, to, subject, text, html, creds.from);
+  }
+
+  if (creds.brevoApiKey) {
+    return await sendViaBrevo(creds.brevoApiKey, to, subject, text, html, creds.user, 'ElderCare Alerts');
+  }
+
+  // 2. Direct SMTP delivery
   if (!creds.user || !creds.pass) {
     if (process.env.ENABLE_ETHEREAL_SIMULATOR === 'true') {
       const sim = await getOrCreateTestTransporter();
@@ -174,7 +302,7 @@ async function sendAlertEmail(to, subject, text, html, customConfig = null) {
     console.warn(`[MAIL NOT SENT] Cannot dispatch alert to ${to}: Gmail credentials are missing.`);
     return {
       sent: false,
-      reason: 'Gmail alerts not configured: Please set SMTP_USER and SMTP_PASS in Render Environment Variables, or enter your Gmail and App Password in Caregiver Settings.'
+      reason: 'Email alerts not configured: Add a free RESEND_API_KEY (from resend.com) or enter your Gmail & App Password in Caregiver Settings.'
     };
   }
 
@@ -235,8 +363,22 @@ async function sendAlertEmail(to, subject, text, html, customConfig = null) {
 
 async function verifySmtp(customConfig) {
   const creds = getCredentials(customConfig);
+
+  // If using Resend API
+  if (creds.resendApiKey) {
+    try {
+      const res = await fetch('https://api.resend.com/api-keys', {
+        headers: { 'Authorization': `Bearer ${creds.resendApiKey}` }
+      });
+      if (res.ok) return { valid: true, service: 'resend' };
+      return { valid: false, error: 'Invalid Resend API Key' };
+    } catch (e) {
+      return { valid: false, error: e.message };
+    }
+  }
+
   if (!creds.user || !creds.pass) {
-    return { valid: false, error: 'Gmail Address and 16-letter App Password are required' };
+    return { valid: false, error: 'Gmail Address and 16-letter App Password (or Resend API Key) are required' };
   }
 
   try {

@@ -94,7 +94,7 @@ function elderForUser(user, elderId) {
 }
 
 function caregiverWithSmtp(caregiverId) {
-  return db.prepare('SELECT id, email, name, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from FROM caregivers WHERE id = ?').get(caregiverId);
+  return db.prepare('SELECT id, email, name, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, resend_api_key FROM caregivers WHERE id = ?').get(caregiverId);
 }
 
 function emitToCaregiver(caregiverId, event, payload) {
@@ -182,7 +182,11 @@ async function createAlert(elder, type, detail) {
 
         if (result && result.sent) {
           emailed = true;
-          if (result.isGmail) {
+          if (result.service === 'resend') {
+            emailInfo = `Delivered to Gmail inbox via Resend HTTPS (${cg.email}) in ${result.durationSec || '1'}s`;
+          } else if (result.service === 'brevo') {
+            emailInfo = `Delivered to Gmail inbox via Brevo HTTPS (${cg.email}) in ${result.durationSec || '1'}s`;
+          } else if (result.isGmail) {
             emailInfo = `Delivered directly to your Gmail inbox (${cg.email}) in ${result.durationSec || '1'}s`;
           } else if (result.isTest) {
             emailInfo = `Simulated test email sent (${result.durationSec || '1'}s)`;
@@ -317,7 +321,7 @@ function syncEnvFile(updates) {
 
 app.get('/api/settings', auth, (req, res) => {
   if (req.user.role !== 'caregiver') return res.status(403).json({ error: 'Caregivers only' });
-  const user = db.prepare('SELECT id, name, email, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from FROM caregivers WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, name, email, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, resend_api_key FROM caregivers WHERE id = ?').get(req.user.id);
   res.json({
     name: user.name,
     email: user.email,
@@ -326,16 +330,25 @@ app.get('/api/settings', auth, (req, res) => {
     smtp_port: user.smtp_port || 587,
     smtp_user: user.smtp_user || '',
     smtp_from: user.smtp_from || '',
-    has_smtp_pass: Boolean(user.smtp_pass)
+    has_smtp_pass: Boolean(user.smtp_pass),
+    has_resend_key: Boolean(user.resend_api_key || process.env.RESEND_API_KEY)
   });
 });
 
 app.post('/api/settings', auth, (req, res) => {
   if (req.user.role !== 'caregiver') return res.status(403).json({ error: 'Caregivers only' });
-  const { email, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from } = req.body;
+  const { email, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, resend_api_key } = req.body;
   
   if (email && email.trim()) {
     db.prepare('UPDATE caregivers SET email = ? WHERE id = ?').run(email.trim().toLowerCase(), req.user.id);
+  }
+
+  if (resend_api_key !== undefined) {
+    const keyVal = resend_api_key ? resend_api_key.trim() : null;
+    db.prepare('UPDATE caregivers SET resend_api_key = ? WHERE id = ?').run(keyVal, req.user.id);
+    if (keyVal) {
+      syncEnvFile({ RESEND_API_KEY: keyVal });
+    }
   }
 
   if (smtp_pass) {
