@@ -735,6 +735,6 @@ io.on('connection', (socket) => {
 
 setInterval(checkMissedMeds, 30 * 1000);
 
-server.listen(PORT, () => {
-  console.log(`ElderCare running at http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`ElderCare running at http://0.0.0.0:${PORT}`);
 });
