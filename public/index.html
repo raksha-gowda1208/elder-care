@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ElderCare — AI Vision Safety & Medication Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand-row">
+      <div class="logo">
+        <div class="mark">EC</div>
+        <div>
+          <h1 class="brand">ElderCare Vision</h1>
+          <div class="sub">Intelligent fall detection & spoken medication assistant for elders living alone</div>
+        </div>
+      </div>
+    </div>
+
+    <h1>Stay connected & protected, even from miles away.</h1>
+    <p class="lead">ElderCare connects caregivers with elderly family members living alone. The home device runs real-time <strong>skeleton pose fall detection</strong>, plays scheduled voice medication alarms with automatic microphone listening for <em>“taken / done”</em>, and sends <strong>immediate emergency emails</strong> upon fall detection.</p>
+    
+    <div class="hero-pills">
+      <span class="pill">📹 Live Video Monitoring</span>
+      <span class="pill">🦴 AI Skeleton Pose Fall Detection</span>
+      <span class="pill">🎙️ Voice Medication Reminders (Auto-Mic)</span>
+      <span class="pill">✉️ Immediate Caregiver Email Dispatch</span>
+    </div>
+
+    <div class="grid two">
+      <div class="card">
+        <h3>Caregiver Portal</h3>
+        <p class="hint">Register your loved one, watch their camera live, schedule voice reminders, and receive immediate alerts.</p>
+        <label class="field">Your Name
+          <input id="fullname" placeholder="Full name">
+        </label>
+        <label class="field">Email Address
+          <input id="email" type="email" placeholder="you@example.com" autocomplete="username">
+        </label>
+        <label class="field">Password
+          <input id="pw" type="password" placeholder="At least 6 characters" autocomplete="current-password">
+        </label>
+        <div class="row" style="display:flex; gap:10px; margin-top:16px;">
+          <button type="button" class="primary-btn" id="loginBtn" style="flex:1;">Sign In</button>
+          <button type="button" class="ghost-btn" id="registerBtn" style="flex:1;">Create Account</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Elderly Home Device</h3>
+        <p class="hint">Enter the 6-character pairing code from the caregiver portal on the device placed in the elder's room.</p>
+        <label class="field">Pairing Code
+          <input id="code" placeholder="ABC123" autocomplete="off" style="text-transform:uppercase; letter-spacing:0.14em; font-size:1.3rem; text-align:center; font-family:monospace; font-weight:800;">
+        </label>
+        <button type="button" class="ok-btn big" id="elderBtn" style="margin-top:20px;">
+          🧓 Open Elderly Dashboard
+        </button>
+      </div>
+    </div>
+    <p class="err" id="err"></p>
+  </div>
+
+  <script>
+    const post = (p, b) => fetch('/api' + p, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(b)
+    }).then((r) => r.json());
+
+    function showErr(d) {
+      err.textContent = d.error || 'Something went wrong';
+    }
+
+    async function cg(type) {
+      err.textContent = '';
+      const d = await post('/' + type, {
+        name: fullname.value,
+        email: email.value,
+        password: pw.value
+      });
+      if (d.token) {
+        localStorage.token = d.token;
+        location.href = '/caregiver.html';
+      } else showErr(d);
+    }
+
+    async function el() {
+      err.textContent = '';
+      const codeVal = code.value.trim().toUpperCase();
+      if (!codeVal) return showErr({ error: 'Please enter the 6-character pairing code' });
+      const d = await post('/elder-login', { code: codeVal });
+      if (d.token) {
+        localStorage.token = d.token;
+        localStorage.elder = JSON.stringify(d.elder);
+        location.href = '/elderly.html';
+      } else showErr(d);
+    }
+
+    loginBtn.onclick = () => cg('login');
+    registerBtn.onclick = () => cg('register');
+    elderBtn.onclick = el;
+    pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') cg('login'); });
+    code.addEventListener('keydown', (e) => { if (e.key === 'Enter') el(); });
+  </script>
+</body>
+</html>

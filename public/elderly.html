@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elderly Dashboard — ElderCare AI Vision</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="elder-app">
+  <div class="wrap elder-wrap">
+    <!-- Top Header Bar -->
+    <header class="elder-topbar">
+      <div class="elder-id">
+        <div class="elder-avatar">
+          <span>🧓</span>
+        </div>
+        <div>
+          <h1 id="hi">Hello</h1>
+          <div class="elder-subtitle">
+            <span class="live-dot pulse"></span>
+            <span>Vision Safety Active</span>
+            <span class="sep">·</span>
+            <span id="currentTime">--:--</span>
+          </div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <!-- Language Switcher Bar -->
+        <div class="lang-bar" id="topLangBar">
+          <button type="button" class="lang-chip active" data-lang="en">English</button>
+          <button type="button" class="lang-chip" data-lang="kn">ಕನ್ನಡ</button>
+          <button type="button" class="lang-chip" data-lang="hi">हिंदी</button>
+        </div>
+        <button class="sos-btn" id="sosBtn" type="button" title="Send emergency alert to caregiver">🚨 SOS</button>
+        <button class="ghost-btn" type="button" id="logout" title="Exit to home">Exit</button>
+      </div>
+    </header>
+
+    <!-- Initial Start Screen (Before camera start) -->
+    <div id="startBanner" class="card start-card">
+      <div class="start-icon">📷</div>
+      <h2>Start Vision & Voice Protection</h2>
+      <p class="lead">Tap below to turn on the camera for skeleton fall detection and enable the automatic microphone for medication reminders in <strong>English, ಕನ್ನಡ, or हिंदी</strong>.</p>
+      <button id="start" class="big primary-btn pulse-button" type="button">
+        <span>▶ Start Protection</span>
+      </button>
+      <p class="privacy-note">🔒 Private & Secure: Video is analyzed locally in real-time. Only safety alerts and live view upon request are sent to your caregiver.</p>
+    </div>
+
+    <!-- Main Live Monitoring Station -->
+    <div id="monitorCard" class="card stage-card hidden">
+      <div class="stage-header">
+        <div class="stage-badges">
+          <div id="stat" class="status-chip ok">
+            <span class="dot"></span>
+            <span id="statText">Calibrating skeleton…</span>
+          </div>
+          <div id="postureBadge" class="telemetry-pill">
+            <span>Posture:</span> <strong id="postureText">Stand</strong>
+          </div>
+        </div>
+        <div class="telemetry-group">
+          <span class="telemetry-pill" title="Torso Angle from Vertical">
+            📐 Angle: <strong id="angleVal">0°</strong>
+          </span>
+          <span class="telemetry-pill" id="fpsPill">
+            ⚡ <span id="fpsVal">30</span> FPS
+          </span>
+        </div>
+      </div>
+
+      <!-- Video & Skeleton Canvas -->
+      <div class="stage">
+        <video id="cam" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+        <div id="fallWarningOverlay" class="stage-warning-banner hidden">
+          <span>⚠️ SUDDEN DROP DETECTED — CHECKING POSTURE</span>
+        </div>
+      </div>
+
+      <!-- Quick Telemetry & Status Explanation -->
+      <div class="telemetry-footer">
+        <div class="telemetry-item">
+          <span class="t-icon">🦴</span>
+          <div>
+            <strong>Skeleton Pose Tracking</strong>
+            <p id="poseHint">Monitoring posture. Stand, sit, or move freely.</p>
+          </div>
+        </div>
+        <div class="telemetry-item">
+          <span class="t-icon">🚨</span>
+          <div>
+            <strong>Instant Fall Protection</strong>
+            <p id="fallHint">Immediate alerts dispatched to your caregiver if a fall is detected.</p>
+          </div>
+        </div>
+        <div class="telemetry-item">
+          <span class="t-icon">🎤</span>
+          <div>
+            <strong>Multi-Lingual Voice Assistant</strong>
+            <p id="langSupportHint">Supports English, ಕನ್ನಡ (Kannada), and हिंदी (Hindi).</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Demonstration & Quick Action Drawer -->
+      <div class="demo-drawer">
+        <span class="demo-title">Test & Demonstration Controls:</span>
+        <div class="demo-buttons">
+          <button type="button" class="demo-btn danger-demo" id="testFallBtn" title="Test Fall Alert without dropping to floor">
+            ⚡ Test Fall Alert
+          </button>
+          <button type="button" class="demo-btn gold-demo" id="testMedBtn" title="Test voice reminder in English">
+            💊 Test English Voice
+          </button>
+          <button type="button" class="demo-btn lang-demo" id="testKnMedBtn" title="Test voice reminder in Kannada">
+            🇮🇳 ಕನ್ನಡ Test
+          </button>
+          <button type="button" class="demo-btn lang-demo" id="testHiMedBtn" title="Test voice reminder in Hindi">
+            🇮🇳 हिंदी Test
+          </button>
+          <button type="button" class="demo-btn" id="toggleSkeletonBtn">
+            🦴 Toggle Skeleton
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive Medication Reminder Modal (Multi-Language) -->
+    <div id="alarm" class="overlay hidden">
+      <div class="card modal-card alarm-modal">
+        <div class="modal-badge-row">
+          <span class="modal-badge" id="modalBadgeText">💊 Medication Due</span>
+          <span class="time-badge" id="medTimeBadge">Now</span>
+        </div>
+
+        <!-- Language Switcher inside modal -->
+        <div class="modal-lang-toggle">
+          <span class="lang-label">Language / ಭಾಷೆ / भाषा:</span>
+          <button type="button" class="modal-lang-btn active" data-lang="en">English</button>
+          <button type="button" class="modal-lang-btn" data-lang="kn">ಕನ್ನಡ</button>
+          <button type="button" class="modal-lang-btn" data-lang="hi">हिंदी</button>
+        </div>
+
+        <h2 id="atext" class="alarm-title">Time for your medicine</h2>
+        <p id="adosage" class="alarm-dosage">1 tablet with water</p>
+        <p id="amsg" class="alarm-custom-msg">Please take your medicine now.</p>
+
+        <!-- Listening visualizer row -->
+        <div class="mic-station">
+          <div class="mic-wave" id="micWave">
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+          </div>
+          <div class="mic-status-row">
+            <span class="mic-icon" id="micIcon">🎤</span>
+            <span id="listenText" class="mic-status-text">Microphone is listening…</span>
+          </div>
+          <div class="speech-bubble" id="speechBubble">
+            Say <span class="keyword">“Taken”</span> or <span class="keyword">“Done”</span>
+          </div>
+        </div>
+
+        <button id="taken" class="big ok-btn" type="button">
+          ✓ I Took It (Confirm)
+        </button>
+        <p class="modal-subhint" id="modalSubhint">This reminder repeats with voice every 11 seconds until confirmed.</p>
+      </div>
+    </div>
+
+    <!-- Emergency Fall Alert Modal -->
+    <div id="fall" class="overlay hidden">
+      <div class="card modal-card emergency-modal">
+        <div class="emergency-icon-pulse">🚨</div>
+        <h2 class="emergency-title">FALL DETECTED</h2>
+        <p class="emergency-text">A sudden fall or prone position was detected. Your caregiver is being emailed to their Gmail account immediately.</p>
+        
+        <div class="emergency-countdown-box">
+          <div class="cd-label">Sending emergency dispatch:</div>
+          <div class="cd-status" id="fallStatusText">Emergency Gmail notification dispatched!</div>
+        </div>
+
+        <div class="emergency-actions">
+          <button id="ok" class="big false-alarm-btn" type="button">
+            🛡️ I am OK (Cancel Alert)
+          </button>
+        </div>
+        <p class="modal-subhint">If you are hurt, stay still. Help is on the way.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- MediaPipe Pose Complete Solutions Suite -->
+  <script src="/vendor/mediapipe/pose/pose_solution_packed_assets_loader.js"></script>
+  <script src="/vendor/mediapipe/pose/pose_solution_simd_wasm_bin.js"></script>
+  <script src="/vendor/mediapipe/pose/pose.js"></script>
+  <script src="/vendor/mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="/vendor/mediapipe/drawing_utils/drawing_utils.js"></script>
+  <!-- Application script -->
+  <script src="/elderly.js"></script>
+</body>
+</html>

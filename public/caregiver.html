@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Caregiver Portal — ElderCare Vision</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="cg-body">
+  <div class="cg-app">
+    <!-- Top Navigation Header -->
+    <header class="cg-navbar">
+      <div class="nav-brand">
+        <div class="brand-badge">EC</div>
+        <div>
+          <h1 class="brand-title">ElderCare <span class="brand-tag">Caregiver</span></h1>
+          <div class="nav-subtitle" id="who">Connecting to monitoring center…</div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button type="button" class="action-btn gmail-btn-highlight" id="openSettingsBtn" title="Gmail Alert Setup">📧 Gmail Alert Setup</button>
+        <button type="button" class="logout-btn" id="logout">Log Out</button>
+      </div>
+    </header>
+
+    <!-- Emergency Sticky Banner -->
+    <div id="banner" class="emergency-banner hidden">
+      <div class="banner-inner">
+        <div class="banner-icon">🚨</div>
+        <div class="banner-content">
+          <h2 id="bannerTitle">EMERGENCY ALERT</h2>
+          <p id="bannerDetail">Fall detected on home camera.</p>
+          <div id="bannerEmailStatus" class="banner-email-tag">Email dispatched directly to caregiver's Gmail</div>
+        </div>
+        <div class="banner-actions">
+          <button type="button" class="banner-action-btn" id="bannerWatchBtn">View Camera</button>
+          <button type="button" class="banner-dismiss-btn" id="bannerDismissBtn">Dismiss</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-num" id="statElders">0</div>
+        <div class="stat-label">Registered Elders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num ok-num" id="statOnline">0</div>
+        <div class="stat-label">Cameras Online</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num warn-num" id="statMeds">0</div>
+        <div class="stat-label">Scheduled Reminders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num danger-num" id="statAlerts">0</div>
+        <div class="stat-label">Recent Alerts</div>
+      </div>
+    </div>
+
+    <!-- Main Workspace Shell -->
+    <div class="workspace-grid">
+      <!-- Left Column: Elder Profiles -->
+      <aside class="sidebar-pane">
+        <div class="panel-card">
+          <div class="panel-header">
+            <h3>Monitored Persons</h3>
+            <button type="button" class="icon-btn" id="toggleAddElderBtn" title="Register New Person">+ Add</button>
+          </div>
+
+          <!-- Add Elder Form (Collapsible) -->
+          <div id="addElderForm" class="quick-form hidden">
+            <h4>Register Person for Home Watch</h4>
+
+            <label class="field-label">Full Name
+              <input id="en" placeholder="e.g. Mary Smith" autocomplete="off">
+            </label>
+            <label class="field-label">Age
+              <input id="ea" type="number" min="1" max="120" placeholder="e.g. 78">
+            </label>
+            <label class="field-label">Preferred Reminder Language
+              <select id="elang" class="select-field">
+                <option value="en">English (Default)</option>
+                <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                <option value="hi">हिंदी (Hindi)</option>
+              </select>
+            </label>
+            <label class="field-label">Notes / Room (Optional)
+              <input id="enotes" placeholder="e.g. Living room camera">
+            </label>
+            <div class="form-btn-row">
+              <button type="button" class="primary-btn sm" id="addElder">Save & Generate Code</button>
+              <button type="button" class="ghost-btn sm" id="cancelAddElder">Cancel</button>
+            </div>
+          </div>
+
+          <div id="elders" class="elders-list">
+            <div class="loading-state">Loading registered persons…</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Column: Active Elder Dashboard -->
+      <main class="main-pane">
+        <div id="noSelection" class="empty-state-card">
+          <div class="empty-icon">🧓</div>
+          <h3>Select a Person to Monitor</h3>
+          <p>Choose an elder from the left pane to watch their live camera, manage multi-lingual voice medication reminders, and review fall alerts.</p>
+        </div>
+
+        <div id="panel" class="active-panel hidden">
+          <!-- Active Elder Header Card -->
+          <div class="elder-headline-card">
+            <div class="headline-left">
+              <div class="elder-header-profile">
+                <div class="elder-header-avatar-wrap">
+                  <div class="elder-header-avatar-fallback">🧓</div>
+                </div>
+                <div>
+                  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <h2 id="ptitle" style="margin:0;">Elder Name</h2>
+                  </div>
+                  <div class="pairing-badge" style="margin-top:6px;">
+                    <span>Pairing Code for Home Device:</span>
+                    <code id="pcode">------</code>
+                    <button type="button" class="copy-pill" id="copyCode">Copy</button>
+                    <span id="pLangBadge" class="badge">🌐 English</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="headline-right">
+              <div id="liveStatusPill" class="live-pill off">Offline</div>
+              <div id="postureTelemetryPill" class="telemetry-tag">Posture: Unknown</div>
+            </div>
+          </div>
+
+          <!-- Tab Navigation -->
+          <div class="tab-nav">
+            <button type="button" class="tab-btn active" data-tab="tab-camera">📹 Live Camera & Posture</button>
+            <button type="button" class="tab-btn" data-tab="tab-meds">💊 Multi-Lingual Medication Alarms</button>
+            <button type="button" class="tab-btn" data-tab="tab-alerts">🚨 Safety & Fall Alerts</button>
+          </div>
+
+          <!-- TAB 1: Live Camera Monitoring -->
+          <section id="tab-camera" class="tab-content active">
+            <div class="panel-card camera-card">
+              <div class="camera-toolbar">
+                <div class="stream-indicators">
+                  <span class="live-dot-indicator pulse" id="cameraDot"></span>
+                  <span id="watchHint" class="stream-status">Waiting to connect…</span>
+                </div>
+                <div class="camera-actions">
+                  <button type="button" class="action-btn sm primary-btn" id="watchBtn">▶ Watch Live Camera</button>
+                  <button type="button" class="action-btn sm" id="testFallAlertBtn" title="Test Fall Alert Trigger">⚡ Simulate Fall Alert</button>
+                </div>
+              </div>
+
+              <!-- Video Stream Stage -->
+              <div class="video-container">
+                <video id="v" autoplay playsinline muted></video>
+                <img id="streamFallback" class="stream-fallback hidden" alt="Live Camera Snapshot Feed">
+                <div id="cameraStandbyNotice" class="camera-placeholder">
+                  <div class="placeholder-icon">📹</div>
+                  <p><strong>Camera Standby</strong></p>
+                  <p class="subtle">Open the Elderly Dashboard on their device (or tap “Watch Live Camera” above).</p>
+                </div>
+                <div class="video-hud">
+                  <span id="hudPosture" class="hud-tag">Posture: Live</span>
+                  <span id="hudTime" class="hud-tag">Live Feed</span>
+                </div>
+              </div>
+
+              <div class="camera-info-banner">
+                <div class="info-item">
+                  <strong>AI Skeleton Watch:</strong> Analyzes spine angle & downward velocity over sliding windows.
+                </div>
+                <div class="info-item">
+                  <strong>Direct Gmail Dispatch:</strong> If a drop into prone pose occurs, emergency alerts are emailed directly to Gmail.
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 2: Medication Reminders -->
+          <section id="tab-meds" class="tab-content">
+            <div class="panel-card">
+              <div class="panel-header">
+                <div>
+                  <h3>Schedule Medication Voice Reminder</h3>
+                  <p class="panel-desc">Reminders activate automatically. The home device speaks in the chosen language (<strong>English, ಕನ್ನಡ, or हिंदी</strong>) and turns on the microphone, repeating until the elder confirms by voice (e.g. <em>“taken”</em>, <em>“ತಗೊಂಡೆ”</em>, <em>“ಆಯಿತು”</em>, or <em>“ले लिया”</em>).</p>
+                </div>
+              </div>
+
+              <form id="medForm" class="med-form-grid" onsubmit="return false;">
+                <label class="field-label">Medicine Name
+                  <input id="mn" placeholder="e.g. Blood Pressure Pill / Metformin" required>
+                </label>
+                <label class="field-label">Dosage
+                  <input id="md" placeholder="e.g. 1 tablet with water">
+                </label>
+                <label class="field-label">Voice Prompt Language / ಭಾಷೆ / भाषा
+                  <select id="mlang" class="select-field">
+                    <option value="en">English (English)</option>
+                    <option value="kn">ಕನ್ನಡ (Kannada: ನಮಸ್ಕಾರ, ಔಷಧಿ ತೆಗೆದುಕೊಳ್ಳಿ...)</option>
+                    <option value="hi">हिंदी (Hindi: नमस्ते, दवाई ले लीजिए...)</option>
+                  </select>
+                </label>
+                <label class="field-label">Reminder Date
+                  <input id="mdate" type="date">
+                </label>
+                <label class="field-label">Reminder Time
+                  <input id="mt" type="time" required>
+                </label>
+                <div class="field-label checkbox-field">
+                  <label class="inline-check">
+                    <input type="checkbox" id="mdaily">
+                    <span><strong>Repeat Daily</strong> at this time</span>
+                  </label>
+                </div>
+                <label class="field-label full-width">Custom Spoken Prompt (Optional — overrides default)
+                  <input id="mm" placeholder="e.g. Hi Dad, please take your evening blood pressure pill!">
+                </label>
+
+                <!-- Voice Recording Studio -->
+                <div class="voice-studio full-width">
+                  <div class="studio-header">
+                    <span class="studio-title">🎙️ Record Your Own Voice Message (Caregiver Audio):</span>
+                    <span id="recStat" class="studio-status">No clip recorded</span>
+                  </div>
+                  <div class="studio-controls">
+                    <button type="button" class="studio-btn" id="recBtn">Record Voice Clip</button>
+                    <audio id="preview" controls hidden class="studio-audio"></audio>
+                    <button type="button" class="ghost-btn sm hidden" id="clearAudioBtn">Remove Clip</button>
+                  </div>
+                </div>
+
+                <div class="form-btn-row full-width">
+                  <button type="button" class="primary-btn" id="addMed">+ Add Voice Reminder</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="panel-card" style="margin-top: 18px;">
+              <div class="panel-header">
+                <h3>Active Reminders & Status</h3>
+              </div>
+              <div id="meds" class="meds-schedule-list">
+                <div class="loading-state">Loading medication schedule…</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 3: Safety & Fall Alerts -->
+          <section id="tab-alerts" class="tab-content">
+            <div class="panel-card">
+              <div class="panel-header">
+                <h3>Incident & Alert Audit Trail</h3>
+                <button type="button" class="ghost-btn sm" id="refreshAlertsBtn">↻ Refresh</button>
+              </div>
+              <div id="alerts" class="alerts-history-list">
+                <div class="loading-state">Loading alert history…</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- Email & Direct Gmail Settings Modal -->
+    <div id="settingsModal" class="overlay hidden">
+      <div class="card modal-card settings-modal">
+        <div class="modal-header">
+          <h3>📧 Direct Gmail & Fall Alert Setup</h3>
+          <button type="button" class="close-modal-btn" id="closeSettingsBtn">✕</button>
+        </div>
+        <p class="modal-desc">Configure direct delivery so fall warnings land <strong>instantly in your personal Gmail inbox</strong> (with high-priority sirens and red emergency banners).</p>
+
+        <div class="gmail-instructions-card">
+          <h4>⚡ How to connect your Gmail (Takes 30 seconds):</h4>
+          <ol class="gmail-steps">
+            <li>Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#2dd4bf;text-decoration:underline;font-weight:700;">Google Account → App Passwords ↗</a></li>
+            <li>Make sure 2-Step Verification is active on your Google Account.</li>
+            <li>Under App name, type <strong>ElderCare</strong> and click <strong>Create</strong>.</li>
+            <li>Copy the 16-letter code generated by Google (e.g. <code>abcd efgh ijkl mnop</code>) and paste it below.</li>
+          </ol>
+        </div>
+
+        <form id="settingsForm" class="settings-form" onsubmit="return false;">
+          <label class="field-label">Recipient Alert Email (Where fall alerts are received)
+            <input id="cfgEmail" type="email" placeholder="your-personal-email@gmail.com">
+          </label>
+          <label class="field-label">Sender Gmail Address (Google Account sending alerts)
+            <input id="cfgSmtpUser" type="email" placeholder="your-sender-account@gmail.com">
+          </label>
+          <label class="field-label">Gmail 16-Letter App Password
+            <input id="cfgSmtpPass" type="password" placeholder="•••• •••• •••• •••• (16 characters from Google App Passwords)">
+          </label>
+          <label class="field-label">Emergency Contact Phone (Optional)
+            <input id="cfgPhone" placeholder="+1 (555) 000-0000">
+          </label>
+
+          <input type="hidden" id="cfgSmtpHost" value="smtp.gmail.com">
+          <input type="hidden" id="cfgSmtpPort" value="465">
+          <input type="hidden" id="cfgSmtpFrom" value="ElderCare Safety Alerts">
+
+          <div class="settings-actions">
+            <button type="button" class="primary-btn" id="saveSettingsBtn">💾 Connect & Save Gmail</button>
+            <button type="button" class="action-btn gmail-test-btn" id="testEmailBtn">📧 Send Test Email to My Gmail Now</button>
+          </div>
+          <p id="settingsMsg" class="settings-status-msg"></p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const token = localStorage.token;
+    if (!token) location.href = '/';
+
+    let cur = null;
+    let pc = null;
+    let elders = [];
+    let audioData = null;
+    let recorder = null;
+    let chunks = [];
+    let recordStartTime = 0;
+    let recordTimer = null;
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
+    const api = (p, m = 'GET', b) => fetch('/api' + p, {
+      method: m,
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: b && JSON.stringify(b)
+    }).then((r) => r.json());
+
+    const socket = io({ auth: { token } });
+
+    // UI elements
+    const who = document.getElementById('who');
+    const banner = document.getElementById('banner');
+    const bannerTitle = document.getElementById('bannerTitle');
+    const bannerDetail = document.getElementById('bannerDetail');
+    const bannerEmailStatus = document.getElementById('bannerEmailStatus');
+    const bannerWatchBtn = document.getElementById('bannerWatchBtn');
+    const bannerDismissBtn = document.getElementById('bannerDismissBtn');
+
+    const eldersDiv = document.getElementById('elders');
+    const noSelection = document.getElementById('noSelection');
+    const panel = document.getElementById('panel');
+    const ptitle = document.getElementById('ptitle');
+    const pcode = document.getElementById('pcode');
+    const copyCode = document.getElementById('copyCode');
+    const pLangBadge = document.getElementById('pLangBadge');
+    const liveStatusPill = document.getElementById('liveStatusPill');
+    const postureTelemetryPill = document.getElementById('postureTelemetryPill');
+
+    const v = document.getElementById('v');
+    const streamFallback = document.getElementById('streamFallback');
+    const cameraStandbyNotice = document.getElementById('cameraStandbyNotice');
+    const watchBtn = document.getElementById('watchBtn');
+    const watchHint = document.getElementById('watchHint');
+    const cameraDot = document.getElementById('cameraDot');
+    const hudPosture = document.getElementById('hudPosture');
+    const hudTime = document.getElementById('hudTime');
+
+    const mn = document.getElementById('mn');
+    const md = document.getElementById('md');
+    const mm = document.getElementById('mm');
+    const mlang = document.getElementById('mlang');
+    const mdate = document.getElementById('mdate');
+    const mt = document.getElementById('mt');
+    const mdaily = document.getElementById('mdaily');
+    const recBtn = document.getElementById('recBtn');
+    const recStat = document.getElementById('recStat');
+    const preview = document.getElementById('preview');
+    const clearAudioBtn = document.getElementById('clearAudioBtn');
+    const addMedBtn = document.getElementById('addMed');
+    const medsDiv = document.getElementById('meds');
+    const alertsDiv = document.getElementById('alerts');
+
+    // Settings Modal elements
+    const settingsModal = document.getElementById('settingsModal');
+    const openSettingsBtn = document.getElementById('openSettingsBtn');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const testEmailBtn = document.getElementById('testEmailBtn');
+    const settingsMsg = document.getElementById('settingsMsg');
+
+    // Audio Alert Siren
+    let alertAudioCtx = null;
+    function playCaregiverSiren() {
+      try {
+        if (!alertAudioCtx) alertAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (alertAudioCtx.state === 'suspended') alertAudioCtx.resume();
+        const osc = alertAudioCtx.createOscillator();
+        const gain = alertAudioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, alertAudioCtx.currentTime);
+        osc.frequency.setValueAtTime(600, alertAudioCtx.currentTime + 0.2);
+        osc.frequency.setValueAtTime(800, alertAudioCtx.currentTime + 0.4);
+        gain.gain.setValueAtTime(0.3, alertAudioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, alertAudioCtx.currentTime + 1.2);
+        osc.connect(gain);
+        gain.connect(alertAudioCtx.destination);
+        osc.start();
+        osc.stop(alertAudioCtx.currentTime + 1.2);
+      } catch {}
+    }
+
+    // Load Profile
+    api('/me').then((me) => {
+      if (me.name) who.textContent = `Signed in as ${me.name} (${me.email})`;
+    });
+
+    // Tab Navigation
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.onclick = () => {
+        document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+        btn.classList.add('active');
+        const target = document.getElementById(btn.dataset.tab);
+        if (target) target.classList.add('active');
+      };
+    });
+
+    // Real-Time Socket Alerts
+    socket.on('alert', (a) => {
+      banner.classList.remove('hidden');
+      playCaregiverSiren();
+
+      const isFall = a.type === 'fall';
+      bannerTitle.textContent = isFall ? `🚨 EMERGENCY: FALL DETECTED — ${a.name}` : `⚠️ MEDICATION MISSED — ${a.name}`;
+      bannerDetail.textContent = `${a.detail} (at ${new Date(a.at).toLocaleTimeString()})`;
+      
+      if (a.emailInfo && a.emailInfo.includes('Gmail')) {
+        bannerEmailStatus.textContent = `✅ Emergency alert sent directly to your Gmail inbox! (${a.emailInfo})`;
+      } else if (a.previewUrl) {
+        bannerEmailStatus.innerHTML = `Simulated email generated! <a href="${a.previewUrl}" target="_blank" style="color:#fff;text-decoration:underline;">View email preview ↗</a>`;
+      } else if (a.emailed) {
+        bannerEmailStatus.textContent = `✅ Email alert delivered: ${a.emailInfo || 'Caregiver notified'}`;
+      } else {
+        bannerEmailStatus.textContent = `⚠️ Email delivery: ${a.emailInfo || 'Configure Gmail in Settings'}`;
+      }
+
+      if (Notification.permission === 'granted') {
+        new Notification((isFall ? 'FALL DETECTED: ' : 'Missed Medication: ') + a.name, { body: a.detail });
+      }
+
+      if (cur && cur.id == a.elderId) {
+        loadAlerts();
+        if (isFall) {
+          const camTab = document.querySelector('[data-tab="tab-camera"]');
+          if (camTab) camTab.click();
+          watch();
+        }
+      }
+      updateStats();
+    });
+
+    socket.on('med-taken', (m) => {
+      banner.classList.remove('hidden');
+      bannerTitle.textContent = `✅ Medication Taken — ${m.name}`;
+      bannerDetail.textContent = `Confirmed on device: ${m.how} at ${new Date(m.at).toLocaleTimeString()}`;
+      bannerEmailStatus.textContent = 'Voice confirmation logged in system records.';
+      setTimeout(() => banner.classList.add('hidden'), 7000);
+      if (cur && cur.id == m.elderId) loadMeds();
+      updateStats();
+    });
+
+    // Real-Time Fallback Canvas Stream from elder device
+    socket.on('elder-frame', ({ elderId, image }) => {
+      if (cur && cur.id === elderId) {
+        streamFallback.src = image;
+        streamFallback.classList.remove('hidden');
+        cameraStandbyNotice.classList.add('hidden');
+        cameraDot.className = 'live-dot-indicator pulse';
+        watchHint.textContent = 'Live (Vision Relay)';
+        hudTime.textContent = 'Frame ' + new Date().toLocaleTimeString();
+      }
+    });
+
+    // Real-Time Posture Telemetry
+    socket.on('elder-posture', ({ elderId, posture, angle, stability }) => {
+      if (cur && cur.id === elderId) {
+        postureTelemetryPill.textContent = `Posture: ${posture} (${angle}°)`;
+        postureTelemetryPill.className = 'telemetry-tag ' + (stability === 'Emergency' ? 'danger' : stability === 'Tilting' ? 'warn' : 'ok');
+        hudPosture.textContent = `${posture} (${angle}°)`;
+        hudPosture.className = 'hud-tag ' + (stability === 'Emergency' ? 'danger' : 'ok');
+      }
+    });
+
+    // Instant update when Gmail delivery completes
+    socket.on('alert-email-updated', ({ id, elderId, emailed, emailInfo, previewUrl }) => {
+      if (banner && !banner.classList.contains('hidden')) {
+        if (emailInfo) {
+          bannerEmailStatus.textContent = emailInfo;
+        }
+        if (previewUrl) {
+          bannerEmailStatus.innerHTML = `Email preview ready: <a href="${previewUrl}" target="_blank" style="color:#fff;text-decoration:underline;">View sent email ↗</a>`;
+        }
+      }
+      if (cur && cur.id === elderId) {
+        loadAlerts();
+      }
+    });
+
+    socket.on('elder-status', ({ elderId, online }) => {
+      loadElders();
+      if (cur && cur.id === elderId) {
+        liveStatusPill.textContent = online ? 'Online' : 'Offline';
+        liveStatusPill.className = 'live-pill ' + (online ? 'on' : 'off');
+      }
+    });
+
+    Notification.requestPermission();
+
+    bannerWatchBtn.onclick = () => {
+      banner.classList.add('hidden');
+      const camTab = document.querySelector('[data-tab="tab-camera"]');
+      if (camTab) camTab.click();
+      watch();
+    };
+
+    bannerDismissBtn.onclick = () => banner.classList.add('hidden');
+
+    function getLangLabel(lang) {
+      if (lang === 'kn') return '🇮🇳 ಕನ್ನಡ (Kannada)';
+      if (lang === 'hi') return '🇮🇳 हिंदी (Hindi)';
+      return '🌐 English';
+    }
+
+    // Elders Management
+    async function loadElders() {
+      elders = await api('/elders');
+      if (!Array.isArray(elders)) elders = [];
+
+      eldersDiv.innerHTML = elders.map((e) => {
+        return `
+          <div class="elder-card-item ${cur && cur.id === e.id ? 'active' : ''}" onclick="pick(${e.id})">
+            <div class="elder-card-row">
+              <div class="elder-card-content-wrap">
+                <div class="elder-list-avatar-fallback">🧓</div>
+                <div class="elder-card-info">
+                  <span class="elder-name">${esc(e.name)}</span>
+                  <span class="elder-meta">Age ${esc(e.age)} · Code: <strong>${esc(e.code)}</strong> · <span class="lang-tag">${getLangLabel(e.preferred_lang)}</span></span>
+                </div>
+              </div>
+              <span class="badge ${e.online ? 'on' : 'off'}">${e.online ? 'Online' : 'Offline'}</span>
+            </div>
+            ${e.notes ? `<div class="elder-notes">📍 ${esc(e.notes)}</div>` : ''}
+          </div>
+        `;
+      }).join('') || '<div class="empty-list-hint">No persons registered yet. Click “+ Add” to create your first elder profile.</div>';
+
+      updateStats();
+
+      if (cur) {
+        const fresh = elders.find((e) => e.id === cur.id);
+        if (fresh) {
+          cur = fresh;
+          liveStatusPill.textContent = cur.online ? 'Online' : 'Offline';
+          liveStatusPill.className = 'live-pill ' + (cur.online ? 'on' : 'off');
+          pLangBadge.textContent = getLangLabel(cur.preferred_lang);
+        }
+      }
+    }
+
+    function updateStats() {
+      document.getElementById('statElders').textContent = elders.length;
+      document.getElementById('statOnline').textContent = elders.filter((e) => e.online).length;
+    }
+
+    async function addElder() {
+      const name = document.getElementById('en').value.trim();
+      const age = Number(document.getElementById('ea').value);
+      const notes = document.getElementById('enotes').value.trim();
+      const preferred_lang = document.getElementById('elang').value;
+      if (!name || !age) return alert('Name and age are required');
+
+      const d = await api('/elders', 'POST', { name, age, notes, preferred_lang });
+      if (d.error) return alert(d.error);
+
+      document.getElementById('en').value = '';
+      document.getElementById('ea').value = '';
+      document.getElementById('enotes').value = '';
+      document.getElementById('addElderForm').classList.add('hidden');
+      await loadElders();
+      pick(d.id);
+    }
+
+    document.getElementById('addElder').onclick = addElder;
+    document.getElementById('toggleAddElderBtn').onclick = () => {
+      document.getElementById('addElderForm').classList.toggle('hidden');
+    };
+    document.getElementById('cancelAddElder').onclick = () => {
+      document.getElementById('addElderForm').classList.add('hidden');
+    };
+
+    function pick(id) {
+      cur = elders.find((e) => e.id == id);
+      if (!cur) return;
+      noSelection.classList.add('hidden');
+      panel.classList.remove('hidden');
+      ptitle.textContent = cur.name;
+      pcode.textContent = cur.code;
+      pLangBadge.textContent = getLangLabel(cur.preferred_lang);
+      liveStatusPill.textContent = cur.online ? 'Online' : 'Offline';
+      liveStatusPill.className = 'live-pill ' + (cur.online ? 'on' : 'off');
+      postureTelemetryPill.textContent = 'Posture: Ready';
+
+      if (cur.preferred_lang) mlang.value = cur.preferred_lang;
+      mdate.value = new Date().toLocaleDateString('en-CA');
+
+      loadElders();
+      loadMeds();
+      loadAlerts();
+    }
+
+    // Medication Management
+    async function loadMeds() {
+      if (!cur) return;
+      const list = await api(`/elders/${cur.id}/meds`);
+      document.getElementById('statMeds').textContent = list.length;
+
+      medsDiv.innerHTML = list.map((m) => `
+        <div class="med-schedule-row">
+          <div class="med-time-box">
+            <span class="m-time">${esc(m.time)}</span>
+            <span class="m-freq">${m.daily ? 'Daily' : esc(m.date)}</span>
+          </div>
+          <div class="med-details-box">
+            <div class="m-title">
+              <strong>${esc(m.name)}</strong>
+              ${m.dosage ? `<span class="m-dose">${esc(m.dosage)}</span>` : ''}
+              <span class="badge ${m.lang === 'kn' ? 'voice' : m.lang === 'hi' ? 'voice' : 'off'}">${getLangLabel(m.lang)}</span>
+              ${m.has_audio ? `<span class="badge voice">🎙️ Voice Clip</span>` : ''}
+            </div>
+            ${m.message ? `<div class="m-prompt">“${esc(m.message)}”</div>` : ''}
+            <div class="m-status-row">
+              ${m.today_status === 'taken'
+                ? `<span class="status-tag taken">✓ Taken Today (${new Date(m.taken_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})})</span>`
+                : m.today_status === 'missed'
+                ? `<span class="status-tag missed">⚠️ Missed</span>`
+                : `<span class="status-tag pending">⌛ Scheduled</span>`}
+            </div>
+          </div>
+          <div class="med-actions-box">
+            <button type="button" class="action-btn sm" onclick="triggerMed(${m.id})" title="Immediately trigger voice alarm on device for testing">🔔 Test Trigger</button>
+            <button type="button" class="del-btn sm" onclick="delMed(${m.id})">Remove</button>
+          </div>
+        </div>
+      `).join('') || '<div class="empty-list-hint">No medication reminders scheduled yet. Fill the form above to add one.</div>';
+    }
+
+    async function addMed() {
+      if (!cur) return alert('Select a person first');
+      const name = mn.value.trim();
+      const time = mt.value.trim();
+      if (!name || !time) return alert('Medicine name and time are required');
+
+      const d = await api(`/elders/${cur.id}/meds`, 'POST', {
+        name,
+        dosage: md.value.trim(),
+        message: mm.value.trim(),
+        lang: mlang.value,
+        date: mdate.value,
+        time,
+        daily: mdaily.checked,
+        audio: audioData
+      });
+
+      if (d.error) return alert(d.error);
+      mn.value = md.value = mm.value = mt.value = '';
+      audioData = null;
+      recStat.textContent = 'No clip recorded';
+      preview.hidden = true;
+      clearAudioBtn.classList.add('hidden');
+      loadMeds();
+    }
+
+    async function delMed(id) {
+      if (!confirm('Remove this reminder?')) return;
+      await api('/meds/' + id, 'DELETE');
+      loadMeds();
+    }
+
+    async function triggerMed(id) {
+      const res = await api(`/meds/${id}/trigger`, 'POST');
+      if (res.ok) {
+        alert('Voice reminder dispatched! Watch their device — the reminder will speak and the microphone will turn on.');
+      }
+    }
+
+    // Voice Clip Recorder in Caregiver Dashboard
+    recBtn.onclick = async () => {
+      if (recorder && recorder.state === 'recording') {
+        recorder.stop();
+        recBtn.textContent = 'Record Voice Clip';
+        recBtn.classList.remove('recording');
+        if (recordTimer) clearInterval(recordTimer);
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        chunks = [];
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+        recorder.onstop = async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          audioData = await blobToDataUrl(blob);
+          preview.src = audioData;
+          preview.hidden = false;
+          clearAudioBtn.classList.remove('hidden');
+          recStat.textContent = 'Voice clip ready (' + Math.round(blob.size / 1024) + ' KB)';
+        };
+        recorder.start();
+        recordStartTime = Date.now();
+        recBtn.textContent = '⏹ Stop Recording';
+        recBtn.classList.add('recording');
+        recStat.textContent = 'Recording… 0s';
+        recordTimer = setInterval(() => {
+          const sec = Math.round((Date.now() - recordStartTime) / 1000);
+          recStat.textContent = `Recording… ${sec}s`;
+        }, 1000);
+      } catch (err) {
+        alert('Could not access microphone: ' + err.message);
+      }
+    };
+
+    clearAudioBtn.onclick = () => {
+      audioData = null;
+      preview.src = '';
+      preview.hidden = true;
+      clearAudioBtn.classList.add('hidden');
+      recStat.textContent = 'No clip recorded';
+    };
+
+    function blobToDataUrl(blob) {
+      return new Promise((resolve) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.readAsDataURL(blob);
+      });
+    }
+
+    // Alerts History
+    async function loadAlerts() {
+      if (!cur) return;
+      const list = await api(`/elders/${cur.id}/alerts`);
+      document.getElementById('statAlerts').textContent = list.length;
+
+      alertsDiv.innerHTML = list.map((a) => `
+        <div class="alert-history-row ${a.type === 'fall' ? 'fall-alert' : ''}">
+          <div class="alert-badge-col">
+            <span class="alert-type-pill ${a.type === 'fall' ? 'danger' : 'warn'}">
+              ${a.type === 'fall' ? '🚨 FALL DETECTED' : '⚠️ MISSED MED'}
+            </span>
+          </div>
+          <div class="alert-detail-col">
+            <div class="alert-detail-text">${esc(a.detail)}</div>
+            <div class="alert-meta-row">
+              <span class="alert-time">🕒 ${new Date(a.created_at + 'Z').toLocaleString()}</span>
+              ${a.emailed ? `<span class="email-sent-badge">✉️ ${esc(a.email_info || 'Dispatched to Gmail')}</span>` : `<span class="email-pending-badge">✉️ ${esc(a.email_info || 'Not emailed')}</span>`}
+            </div>
+          </div>
+        </div>
+      `).join('') || '<div class="empty-list-hint">No alerts on record. All clear!</div>';
+    }
+
+    document.getElementById('refreshAlertsBtn').onclick = loadAlerts;
+
+    // Simulate Fall Alert (Test)
+    document.getElementById('testFallAlertBtn').onclick = async () => {
+      if (!cur) return;
+      if (!confirm(`Simulate a Fall Alert for ${cur.name}? This will trigger an immediate emergency alert and send a high-priority email to Gmail.`)) return;
+      const res = await api(`/elders/${cur.id}/test-fall`, 'POST');
+      if (res.ok) {
+        alert('Test Fall Alert triggered! Emergency banner and email notification dispatched.');
+      }
+    };
+
+    // Live WebRTC Camera
+    function watch() {
+      if (!cur) return;
+      watchHint.textContent = 'Connecting WebRTC stream…';
+      cameraStandbyNotice.classList.add('hidden');
+
+      if (pc) pc.close();
+      pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      });
+
+      pc.addTransceiver('video', { direction: 'recvonly' });
+      pc.ontrack = (e) => {
+        v.srcObject = e.streams[0];
+        streamFallback.classList.add('hidden');
+        cameraDot.className = 'live-dot-indicator pulse';
+        watchHint.textContent = 'Live WebRTC Video';
+      };
+
+      socket.emit('watch', { elderId: cur.id });
+    }
+
+    socket.on('signal', async ({ from, data }) => {
+      if (!pc) return;
+      pc.onicecandidate = (e) => e.candidate && socket.emit('signal', { to: from, data: { ice: e.candidate } });
+      if (data.sdp) {
+        await pc.setRemoteDescription(data.sdp);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+      }
+      if (data.ice) pc.addIceCandidate(data.ice);
+    });
+
+    watchBtn.onclick = watch;
+
+    copyCode.onclick = () => {
+      navigator.clipboard.writeText(pcode.textContent);
+      copyCode.textContent = 'Copied!';
+      setTimeout(() => { copyCode.textContent = 'Copy'; }, 1800);
+    };
+
+    // Settings Modal
+    openSettingsBtn.onclick = async () => {
+      settingsModal.classList.remove('hidden');
+      settingsMsg.textContent = 'Loading settings…';
+      const s = await api('/settings');
+      document.getElementById('cfgEmail').value = s.email || '';
+      document.getElementById('cfgPhone').value = s.phone || '';
+      document.getElementById('cfgSmtpUser').value = s.smtp_user || s.email || '';
+      document.getElementById('cfgSmtpPass').value = '';
+      settingsMsg.innerHTML = s.has_smtp_pass
+        ? '<span style="color:#2dd4bf">✓ Gmail App Password is configured and ready.</span>'
+        : '<span style="color:#fbbf24">⚠️ Enter your Gmail & 16-letter App Password to receive alerts directly in Gmail.</span>';
+    };
+
+    closeSettingsBtn.onclick = () => settingsModal.classList.add('hidden');
+
+    saveSettingsBtn.onclick = async () => {
+      settingsMsg.textContent = 'Connecting and saving Gmail settings…';
+      const body = {
+        phone: document.getElementById('cfgPhone').value.trim(),
+        smtp_host: 'smtp.gmail.com',
+        smtp_port: 465,
+        smtp_user: document.getElementById('cfgSmtpUser').value.trim(),
+        smtp_pass: document.getElementById('cfgSmtpPass').value,
+        smtp_from: `ElderCare Fall Alerts <${document.getElementById('cfgSmtpUser').value.trim()}>`
+      };
+      const res = await api('/settings', 'POST', body);
+      if (res.ok) {
+        settingsMsg.innerHTML = '<span style="color:#10b981">✓ Gmail credentials saved successfully!</span>';
+        setTimeout(() => settingsModal.classList.add('hidden'), 1400);
+      } else {
+        settingsMsg.innerHTML = `<span style="color:#ef4444">Error: ${res.error || 'Failed to save'}</span>`;
+      }
+    };
+
+    testEmailBtn.onclick = async () => {
+      settingsMsg.textContent = 'Attempting direct delivery to your Gmail inbox…';
+      const res = await api('/settings/test-email', 'POST');
+      if (res.sent) {
+        if (res.isGmail) {
+          settingsMsg.innerHTML = `<span style="color:#10b981">✓ Verified! Emergency test email delivered directly to your Gmail inbox (${res.recipient || ''}). Check your Gmail!</span>`;
+        } else if (res.previewUrl) {
+          settingsMsg.innerHTML = `<span style="color:#fbbf24">✓ Simulated test email dispatched. <a href="${res.previewUrl}" target="_blank" style="text-decoration:underline;color:#5eead4;">View sent preview email ↗</a><br>To receive directly in your real Gmail inbox, enter your Gmail & 16-character App Password above.</span>`;
+        } else {
+          settingsMsg.innerHTML = `<span style="color:#10b981">✓ Test email delivered! Check your inbox.</span>`;
+        }
+      } else {
+        settingsMsg.innerHTML = `<span style="color:#ef4444">Delivery failed: ${res.reason || 'Check Gmail credentials'}</span>`;
+      }
+    };
+
+    logout.onclick = () => { localStorage.clear(); location.href = '/'; };
+    document.getElementById('addMed').onclick = addMed;
+
+    window.pick = pick;
+    window.delMed = delMed;
+    window.triggerMed = triggerMed;
+
+    loadElders();
+  </script>
+</body>
+</html>
