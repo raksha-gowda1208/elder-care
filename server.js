@@ -10,7 +10,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
 const db = require('./db');
-const { sendAlertEmail, verifySmtp } = require('./mail');
 
 const PORT = Number(process.env.PORT || 3000);
 const SECRET = process.env.JWT_SECRET || 'dev-only-change-me';
@@ -93,19 +92,15 @@ function elderForUser(user, elderId) {
   return null;
 }
 
-function caregiverWithSmtp(caregiverId) {
-  return db.prepare('SELECT id, email, name, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, resend_api_key FROM caregivers WHERE id = ?').get(caregiverId);
-}
 
 function emitToCaregiver(caregiverId, event, payload) {
   io.to(`caregiver:${caregiverId}`).emit(event, payload);
 }
 
 async function createAlert(elder, type, detail) {
-  const cg = caregiverWithSmtp(elder.caregiver_id);
   const info = db.prepare(
-    'INSERT INTO alerts (elder_id, type, detail, emailed, email_info) VALUES (?, ?, ?, 0, ?)'
-  ).run(elder.id, type, detail, 'Dispatching to Gmail...');
+    'INSERT INTO alerts (elder_id, type, detail, emailed, email_info) VALUES (?, ?, ?, 1, ?)'
+  ).run(elder.id, type, detail, 'System desktop & siren notification dispatched');
 
   const alert = {
     id: info.lastInsertRowid,
@@ -113,122 +108,13 @@ async function createAlert(elder, type, detail) {
     name: elder.name,
     type,
     detail,
-    at: new Date().toISOString(),
-    emailed: false,
-    emailInfo: 'Dispatching to Gmail...',
-    previewUrl: null
+    at: new Date().toISOString()
   };
 
-  // 1. INSTANT SOCKET ALERT DISPATCH (< 5ms)
+  // INSTANT SOCKET ALERT DISPATCH (< 5ms)
   emitToCaregiver(elder.caregiver_id, 'alert', alert);
   if (type === 'fall') {
     console.log(`[ALERT] Instant fall alert dispatched for ${elder.name} (< 10ms)`);
-  }
-
-  // 2. CONCURRENT EMAIL DISPATCH TO GMAIL (Non-blocking, arrives in 1-2s)
-  if (cg && cg.email) {
-    const isFall = type === 'fall';
-    const subject = isFall
-      ? `🚨 EMERGENCY: Fall Detected for ${elder.name}`
-      : `⚠️ Medication Missed: ${elder.name}`;
-
-    const text = isFall
-      ? `URGENT FALL ALERT!\n\nA fall has been detected for ${elder.name} (Age: ${elder.age || 'N/A'}).\nDetection Details: ${detail}\nTime: ${new Date().toLocaleString()}\n\nPlease check the ElderCare live camera immediately.`
-      : `Medication Alert\n\n${elder.name}: ${detail}\nTime: ${new Date().toLocaleString()}`;
-
-    const html = isFall
-      ? `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,sans-serif;max-width:600px;margin:0 auto;background:#fff;border:2px solid #dc2626;border-radius:14px;overflow:hidden;box-shadow:0 12px 35px rgba(220,38,38,0.18);">
-          <div style="background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);color:#fff;padding:24px;text-align:center;">
-            <div style="font-size:38px;line-height:1;margin-bottom:8px;">🚨</div>
-            <h1 style="margin:0;font-size:24px;font-weight:800;letter-spacing:-0.5px;">EMERGENCY: FALL DETECTED</h1>
-            <p style="margin:6px 0 0;font-size:14px;opacity:0.92;">ElderCare Live Vision Safety Monitoring</p>
-          </div>
-          <div style="padding:26px;color:#1e293b;">
-            <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:14px 16px;border-radius:6px;margin-bottom:20px;">
-              <p style="margin:0;font-size:16px;font-weight:700;color:#991b1b;">Immediate Caregiver Attention Needed</p>
-              <p style="margin:4px 0 0;font-size:14px;color:#7f1d1d;"><strong>${elder.name}</strong> was detected falling or in a prone horizontal position on the floor.</p>
-            </div>
-            <table style="width:100%;border-collapse:collapse;margin-bottom:22px;font-size:14px;">
-              <tr>
-                <td style="padding:8px 0;color:#64748b;width:120px;"><strong>Elder:</strong></td>
-                <td style="padding:8px 0;color:#0f172a;font-weight:600;">${elder.name} (Age ${elder.age || 'N/A'})</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0;color:#64748b;"><strong>Pose Detail:</strong></td>
-                <td style="padding:8px 0;color:#0f172a;">${detail}</td>
-              </tr>
-              <tr>
-                <td style="padding:8px 0;color:#64748b;"><strong>Alert Time:</strong></td>
-                <td style="padding:8px 0;color:#0f172a;">${new Date().toLocaleString()}</td>
-              </tr>
-            </table>
-            <div style="text-align:center;margin:28px 0 16px;">
-              <a href="http://localhost:${PORT}/caregiver.html" style="background:#dc2626;color:#ffffff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;display:inline-block;box-shadow:0 4px 12px rgba(220,38,38,0.3);">Open Live Camera Monitor</a>
-            </div>
-            <p style="font-size:12px;color:#94a3b8;text-align:center;margin:0;">This automated alert was dispatched immediately upon skeleton pose drop analysis.</p>
-          </div>
-        </div>`
-      : `<div style="font-family:sans-serif;padding:20px;border:1px solid #e2e8f0;border-radius:8px;">
-          <h2 style="color:#d97706;margin-top:0;">⚠️ Missed Medication: ${elder.name}</h2>
-          <p>${detail}</p>
-          <p style="color:#64748b;font-size:13px;">Time: ${new Date().toLocaleString()}</p>
-        </div>`;
-
-    sendAlertEmail(cg.email, subject, text, html, cg)
-      .then((result) => {
-        let emailInfo = '';
-        let emailed = false;
-        let previewUrl = null;
-
-        if (result && result.sent) {
-          emailed = true;
-          if (result.service === 'resend') {
-            emailInfo = `Delivered to Gmail inbox via Resend HTTPS (${cg.email}) in ${result.durationSec || '1'}s`;
-          } else if (result.service === 'brevo') {
-            emailInfo = `Delivered to Gmail inbox via Brevo HTTPS (${cg.email}) in ${result.durationSec || '1'}s`;
-          } else if (result.isGmail) {
-            emailInfo = `Delivered directly to your Gmail inbox (${cg.email}) in ${result.durationSec || '1'}s`;
-          } else if (result.isTest) {
-            emailInfo = `Simulated test email sent (${result.durationSec || '1'}s)`;
-          } else {
-            emailInfo = `Sent to ${cg.email} in ${result.durationSec || '1'}s`;
-          }
-          previewUrl = result.previewUrl || null;
-          db.prepare('UPDATE alerts SET emailed = 1, email_info = ? WHERE id = ?').run(
-            previewUrl ? `preview:${previewUrl}` : `sent:${cg.email}`,
-            alert.id
-          );
-        } else {
-          emailInfo = result?.reason || 'Failed to send';
-          db.prepare('UPDATE alerts SET emailed = 0, email_info = ? WHERE id = ?').run(
-            `failed:${emailInfo}`,
-            alert.id
-          );
-        }
-
-        emitToCaregiver(elder.caregiver_id, 'alert-email-updated', {
-          id: alert.id,
-          elderId: elder.id,
-          emailed,
-          emailInfo,
-          previewUrl
-        });
-        console.log(`[MAIL] Email dispatched for alert #${alert.id}: ${emailInfo}`);
-      })
-      .catch((err) => {
-        console.error('[MAIL] Alert email error:', err.message);
-        db.prepare('UPDATE alerts SET emailed = 0, email_info = ? WHERE id = ?').run(
-          `failed:${err.message}`,
-          alert.id
-        );
-        emitToCaregiver(elder.caregiver_id, 'alert-email-updated', {
-          id: alert.id,
-          elderId: elder.id,
-          emailed: false,
-          emailInfo: err.message,
-          previewUrl: null
-        });
-      });
   }
 
   return alert;
@@ -295,105 +181,40 @@ app.get('/api/me', auth, (req, res) => {
   res.json({ role: 'elder', ...elder });
 });
 
-function syncEnvFile(updates) {
-  for (const [key, val] of Object.entries(updates)) {
-    if (val !== undefined && val !== null) {
-      process.env[key] = String(val);
-    }
-  }
-  try {
-    const envPath = path.join(__dirname, '.env');
-    let content = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
-    for (const [key, val] of Object.entries(updates)) {
-      if (!val) continue;
-      const regex = new RegExp(`^${key}=.*$`, 'm');
-      if (regex.test(content)) {
-        content = content.replace(regex, `${key}=${val}`);
-      } else {
-        content += `\n${key}=${val}`;
-      }
-    }
-    fs.writeFileSync(envPath, content.trim() + '\n', 'utf8');
-  } catch (e) {
-    console.warn('Could not update .env:', e.message);
-  }
-}
-
 app.get('/api/settings', auth, (req, res) => {
   if (req.user.role !== 'caregiver') return res.status(403).json({ error: 'Caregivers only' });
-  const user = db.prepare('SELECT id, name, email, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, resend_api_key FROM caregivers WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, name, email, phone FROM caregivers WHERE id = ?').get(req.user.id);
   res.json({
     name: user.name,
     email: user.email,
-    phone: user.phone || '',
-    smtp_host: user.smtp_host || '',
-    smtp_port: user.smtp_port || 587,
-    smtp_user: user.smtp_user || '',
-    smtp_from: user.smtp_from || '',
-    has_smtp_pass: Boolean(user.smtp_pass),
-    has_resend_key: Boolean(user.resend_api_key || process.env.RESEND_API_KEY)
+    phone: user.phone || ''
   });
 });
 
 app.post('/api/settings', auth, (req, res) => {
   if (req.user.role !== 'caregiver') return res.status(403).json({ error: 'Caregivers only' });
-  const { email, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, resend_api_key } = req.body;
+  const { email, phone } = req.body;
   
   if (email && email.trim()) {
     db.prepare('UPDATE caregivers SET email = ? WHERE id = ?').run(email.trim().toLowerCase(), req.user.id);
   }
-
-  if (resend_api_key !== undefined) {
-    const keyVal = resend_api_key ? resend_api_key.trim() : null;
-    db.prepare('UPDATE caregivers SET resend_api_key = ? WHERE id = ?').run(keyVal, req.user.id);
-    if (keyVal) {
-      syncEnvFile({ RESEND_API_KEY: keyVal });
-    }
-  }
-
-  if (smtp_pass) {
-    db.prepare(`
-      UPDATE caregivers SET phone = ?, smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ? WHERE id = ?
-    `).run(phone || null, smtp_host || null, Number(smtp_port) || 587, smtp_user || null, smtp_pass, smtp_from || null, req.user.id);
-    // Sync to .env and in-memory process.env
-    syncEnvFile({
-      SMTP_HOST: smtp_host || 'smtp.gmail.com',
-      SMTP_PORT: smtp_port || 587,
-      SMTP_USER: smtp_user,
-      SMTP_PASS: smtp_pass,
-      SMTP_FROM: smtp_from || `ElderCare Alerts <${smtp_user}>`
-    });
-  } else {
-    db.prepare(`
-      UPDATE caregivers SET phone = ?, smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_from = ? WHERE id = ?
-    `).run(phone || null, smtp_host || null, Number(smtp_port) || 587, smtp_user || null, smtp_from || null, req.user.id);
+  if (phone !== undefined) {
+    db.prepare('UPDATE caregivers SET phone = ? WHERE id = ?').run(phone || null, req.user.id);
   }
   res.json({ ok: true });
 });
 
-app.post('/api/settings/test-email', auth, async (req, res) => {
+app.post('/api/settings/test-alert', auth, (req, res) => {
   if (req.user.role !== 'caregiver') return res.status(403).json({ error: 'Caregivers only' });
-  const cg = caregiverWithSmtp(req.user.id);
-  const isGmail = cg.smtp_host?.toLowerCase().includes('gmail') || cg.smtp_user?.toLowerCase().endsWith('@gmail.com');
-  const subject = '🚨 ElderCare Fall Alert System — Emergency Email Verification';
-  const text = `Hello ${cg.name},\n\nThis confirms that your ElderCare emergency email alerts are directly connected to your Gmail inbox (${cg.email}).\nWhen a fall is detected by the skeleton pose analyzer, high-priority emergency alerts will be delivered here immediately.\n\nTime: ${new Date().toLocaleString()}`;
-  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:580px;margin:0 auto;border:2px solid #0d9488;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.12);">
-    <div style="background:#0d9488;color:#fff;padding:22px;text-align:center;">
-      <h2 style="margin:0;font-size:20px;">✅ Gmail Emergency Alerts Connected!</h2>
-      <p style="margin:4px 0 0;font-size:14px;opacity:0.92;">ElderCare AI Vision & Fall Safety Monitor</p>
-    </div>
-    <div style="padding:24px;color:#1e293b;">
-      <p>Hello <strong>${cg.name}</strong>,</p>
-      <p>Your Gmail address (<strong>${cg.email}</strong>) is verified and ready. The moment an elderly person's home camera detects a fall via skeleton pose analysis, a critical emergency alert will arrive in this Gmail inbox immediately.</p>
-      <div style="background:#f0fdfa;border:1px solid #ccfbf1;padding:12px 16px;border-radius:8px;margin:16px 0;">
-        <p style="margin:0;font-size:14px;color:#0f766e;"><strong>Direct Delivery Status:</strong> Direct Gmail SMTP connection verified.</p>
-      </div>
-      <p style="font-size:12px;color:#64748b;margin-top:20px;">Test dispatched at: ${new Date().toLocaleString()}</p>
-    </div>
-  </div>`;
-
-  const result = await sendAlertEmail(cg.email, subject, text, html, cg);
-  res.json(result);
+  emitToCaregiver(req.user.id, 'alert', {
+    id: Date.now(),
+    elderId: 0,
+    name: 'Caregiver Device Test',
+    type: 'fall',
+    detail: 'TEST ALERT: Triggered desktop notification and audible siren to verify background alerts.',
+    at: new Date().toISOString()
+  });
+  res.json({ ok: true, message: 'Test background notification dispatched' });
 });
 
 app.get('/api/elders', auth, (req, res) => {

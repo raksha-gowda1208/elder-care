@@ -780,7 +780,7 @@ function analyzePose(landmarks, worldLandmarks) {
 // Trigger Emergency Fall Alert
 function triggerFall(detail) {
   fallEl.classList.remove('hidden');
-  fallStatusText.textContent = 'Caregiver alerted immediately via Gmail and live dashboard!';
+  fallStatusText.textContent = 'Caregiver alerted immediately via emergency siren and live dashboard!';
   playSiren();
   say('Fall detected! We are contacting your caregiver immediately.');
 
