@@ -94,7 +94,7 @@ function humanizeError(err) {
     return 'Could not resolve SMTP server. Check internet connection or host address.';
   }
   if (msg.includes('ETIMEDOUT') || msg.includes('timeout') || msg.includes('ESOCKETTIMEDOUT')) {
-    return 'Render Free Tier blocks raw SMTP ports (465 & 587). Add a free RESEND_API_KEY (from resend.com) in Settings or Environment to deliver via HTTPS Port 443.';
+    return 'Cloud free tiers (Railway & Render) block raw SMTP ports (465 & 587). To receive email alerts, add a free RESEND_API_KEY (from resend.com) in Gmail Alert Setup or Environment to deliver over HTTPS.';
   }
   if (msg.includes('ECONNREFUSED')) {
     return 'Connection refused by SMTP server on specified port.';
