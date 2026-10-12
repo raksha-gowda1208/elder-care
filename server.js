@@ -292,6 +292,11 @@ app.get('/api/me', auth, (req, res) => {
 });
 
 function syncEnvFile(updates) {
+  for (const [key, val] of Object.entries(updates)) {
+    if (val !== undefined && val !== null) {
+      process.env[key] = String(val);
+    }
+  }
   try {
     const envPath = path.join(__dirname, '.env');
     let content = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
@@ -327,13 +332,17 @@ app.get('/api/settings', auth, (req, res) => {
 
 app.post('/api/settings', auth, (req, res) => {
   if (req.user.role !== 'caregiver') return res.status(403).json({ error: 'Caregivers only' });
-  const { phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from } = req.body;
+  const { email, phone, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from } = req.body;
   
+  if (email && email.trim()) {
+    db.prepare('UPDATE caregivers SET email = ? WHERE id = ?').run(email.trim().toLowerCase(), req.user.id);
+  }
+
   if (smtp_pass) {
     db.prepare(`
       UPDATE caregivers SET phone = ?, smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ? WHERE id = ?
     `).run(phone || null, smtp_host || null, Number(smtp_port) || 587, smtp_user || null, smtp_pass, smtp_from || null, req.user.id);
-    // Sync to .env
+    // Sync to .env and in-memory process.env
     syncEnvFile({
       SMTP_HOST: smtp_host || 'smtp.gmail.com',
       SMTP_PORT: smtp_port || 587,

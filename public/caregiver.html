@@ -305,7 +305,7 @@
           </label>
 
           <input type="hidden" id="cfgSmtpHost" value="smtp.gmail.com">
-          <input type="hidden" id="cfgSmtpPort" value="465">
+          <input type="hidden" id="cfgSmtpPort" value="587">
           <input type="hidden" id="cfgSmtpFrom" value="ElderCare Safety Alerts">
 
           <div class="settings-actions">
@@ -851,9 +851,10 @@
     saveSettingsBtn.onclick = async () => {
       settingsMsg.textContent = 'Connecting and saving Gmail settings…';
       const body = {
+        email: document.getElementById('cfgEmail').value.trim(),
         phone: document.getElementById('cfgPhone').value.trim(),
         smtp_host: 'smtp.gmail.com',
-        smtp_port: 465,
+        smtp_port: 587,
         smtp_user: document.getElementById('cfgSmtpUser').value.trim(),
         smtp_pass: document.getElementById('cfgSmtpPass').value,
         smtp_from: `ElderCare Fall Alerts <${document.getElementById('cfgSmtpUser').value.trim()}>`
