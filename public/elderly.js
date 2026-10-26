@@ -152,13 +152,13 @@ function applyModalLanguage(med) {
 }
 
 // Multi-Lingual Speech Recognition Engine (Accepts replies in all languages simultaneously)
-const MULTI_LANG_CODES = ['en-IN', 'kn-IN', 'hi-IN'];
+const MULTI_LANG_CODES = ['kn-IN', 'en-IN', 'hi-IN'];
 let multiLangIndex = 0;
 
-// 1. Kannada Affirmation Matcher (Native script, Kanglish transliterations & speech-to-text phonetic patterns)
+// 1. Kannada Affirmation Matcher (Native script, Kanglish transliterations & speech-to-text phonetic mishearings)
 const KANNADA_CONFIRM_REGEX = new RegExp([
-  '(ತಗೊಂಡೆ|ತಗೊಂಡಿದ್ದೀನಿ|ತಗೊಂಡಿದೀನಿ|ತಗೊಂಡಾಯ್ತು|ತಗೊಂಡೆವು|ತಗೊಂಡ್ವಿ|ಆಯಿತು|ಆಯ್ತು|ಆಯಿತಪ್ಪ|ಆಯ್ತಪ್ಪ|ಮುಗೀತು|ಮುಗಿಯಿತು|ಹೌದು|ಕುಡಿದೆ|ಹಾಕೊಂಡೆ|ತೊಗೊಂಡೆ|ತಗೋಂಡೆ|ತಗೊಂಡು|ಔಷಧಿ ತಗೊಂಡೆ)',
-  '\\b(thagonde|tagonde|thagondeen|thagondeeni|tagondeen|tagondeeni|thogonde|togonde|thogondhe|togondhe|thogondideeni|togondideeni|tagond|thogond|tagonda|thagonda|tagondi|thagondi|aythu|aayithu|aithu|aaytu|aitho|aytu|aitu|aithappa|aaythappa|mugithu|mugitu|mugiyithu|mugiside|haudu|houdu|howdu|kudide|kudidhe|kudde|hakonde|haakonde|hakondhe|took on the|took onde|tag on the|the gande)\\b'
+  '(ತಗೊಂಡೆ|ತಗೊಂಡಿದ್ದೀನಿ|ತಗೊಂಡಿದೀನಿ|ತಗೊಂಡಾಯ್ತು|ತಗೊಂಡೆವು|ತಗೊಂಡ್ವಿ|ಆಯಿತು|ಆಯ್ತು|ಆಯಿತಪ್ಪ|ಆಯ್ತಪ್ಪ|ಮುಗೀತು|ಮುಗಿಯಿತು|ಹೌದು|ಕುಡಿದೆ|ಹಾಕೊಂಡೆ|ತೊಗೊಂಡೆ|ತಗೋಂಡೆ|ತಗೊಂಡು|ಔಷಧಿ ತಗೊಂಡೆ|ಟೇಕನ್)',
+  '\\b(thagonde|tagonde|thagondeen|thagondeeni|tagondeen|tagondeeni|thogonde|togonde|thogondhe|togondhe|thogondideeni|togondideeni|tagond|thogond|tagonda|thagonda|tagondi|thagondi|aythu|aayithu|aithu|aaytu|aitho|aytu|aitu|aithappa|aaythappa|mugithu|mugitu|mugiyithu|mugiside|haudu|houdu|howdu|kudide|kudidhe|kudde|hakonde|haakonde|hakondhe|took on the|took onde|tag on the|the gande|the\\s*gunday|the\\s*gun\\s*day|the\\s*gunde|the\\s*gonde|the\\s*gandi|the\\s*gonday|the\\s*goonday|the\\s*konday|the\\s*konde|to\\s*gunday|to\\s*gonde|to\\s*goonday|tagunday|thagunday|took\\s*on\\s*day|gunday|gun\\s*day|gunde|eye\\s*to|i\\s*too|i2)\\b'
 ].join('|'), 'i');
 
 // 2. Hindi Affirmation Matcher (Native script & Hinglish transliterations)
@@ -183,28 +183,28 @@ function matchMultiLangConfirmation(text) {
   if (!text) return null;
   const clean = text.toLowerCase().trim();
 
-  // Check Kannada
+  // Check Kannada (Native script, Kanglish, and English STT phonetic mishearings like "the gunday")
   if (KANNADA_CONFIRM_REGEX.test(clean)) {
-    const m = clean.match(KANNADA_CONFIRM_REGEX);
-    return { langCode: 'kn', langName: 'Kannada / ಕನ್ನಡ', matched: m ? m[0] : 'ತಗೊಂಡೆ' };
+    const isAythu = /(ಆಯಿತು|ಆಯ್ತು|aythu|aithu|aaytu|aitho|aitu|eye\s*to|i\s*too)/i.test(clean);
+    return { langCode: 'kn', langName: 'Kannada / ಕನ್ನಡ', matched: isAythu ? 'ಆಯಿತು' : 'ತಗೊಂಡೆ' };
   }
 
   // Check Hindi
   if (HINDI_CONFIRM_REGEX.test(clean)) {
-    const m = clean.match(HINDI_CONFIRM_REGEX);
-    return { langCode: 'hi', langName: 'Hindi / हिन्दी', matched: m ? m[0] : 'ले लिया' };
+    const isHoGaya = /(हो\s*गया|हो\s*गई|hogaya|ho\\s*gaya|ho\\s*gya|hogya)/i.test(clean);
+    return { langCode: 'hi', langName: 'Hindi / हिन्दी', matched: isHoGaya ? 'हो गया' : 'ले लिया' };
   }
 
   // Check English
   if (ENGLISH_CONFIRM_REGEX.test(clean)) {
-    const m = clean.match(ENGLISH_CONFIRM_REGEX);
-    return { langCode: 'en', langName: 'English', matched: m ? m[0] : 'Taken' };
+    const isDone = /(done|finished|complete)/i.test(clean);
+    const isYes = /(yes|yeah|yep|yup|okay|ok|sure)/i.test(clean);
+    return { langCode: 'en', langName: 'English', matched: isDone ? 'Done' : isYes ? 'Yes' : 'Taken' };
   }
 
   // Fallback Check
   if (CONFIRM_REGEX_ALL.test(clean)) {
-    const m = clean.match(CONFIRM_REGEX_ALL);
-    return { langCode: 'multi', langName: 'Multi-Lingual', matched: m ? m[0] : 'Confirmed' };
+    return { langCode: 'multi', langName: 'Multi-Lingual', matched: 'Confirmed / ತಗೊಂಡೆ' };
   }
 
   return null;
