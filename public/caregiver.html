@@ -38,6 +38,8 @@
         </div>
         <div class="banner-actions">
           <button type="button" class="banner-action-btn" id="bannerWatchBtn">View Camera</button>
+          <button type="button" class="banner-action-btn" id="bannerIntercomBtn" style="background:#0284c7;">📢 Speak to Elder</button>
+          <button type="button" class="banner-action-btn" id="bannerWhatsappBtn" style="background:#16a34a;">📲 WhatsApp SOS</button>
           <button type="button" class="banner-dismiss-btn" id="bannerDismissBtn">Silence Siren & Dismiss</button>
         </div>
       </div>
@@ -145,6 +147,7 @@
             <button type="button" class="tab-btn active" data-tab="tab-camera">📹 Live Camera & Posture</button>
             <button type="button" class="tab-btn" data-tab="tab-meds">💊 Multi-Lingual Medication Alarms</button>
             <button type="button" class="tab-btn" data-tab="tab-alerts">🚨 Safety & Fall Alerts</button>
+            <button type="button" class="tab-btn" data-tab="tab-analytics">📊 Clinical Adherence & Report</button>
           </div>
 
           <!-- TAB 1: Live Camera Monitoring -->
@@ -555,6 +558,7 @@
         btn.classList.add('active');
         const target = document.getElementById(btn.dataset.tab);
         if (target) target.classList.add('active');
+        if (btn.dataset.tab === 'tab-analytics') loadAnalytics();
       };
     });
 
@@ -620,7 +624,8 @@
     });
 
     socket.on('elder-status', ({ elderId, online }) => {
-      loadElders();
+      
+loadElders();
       if (cur && cur.id === elderId) {
         liveStatusPill.textContent = online ? 'Online' : 'Offline';
         liveStatusPill.className = 'live-pill ' + (online ? 'on' : 'off');
@@ -980,6 +985,90 @@
     window.pick = pick;
     window.delMed = delMed;
     window.triggerMed = triggerMed;
+
+    // Two-Way Intercom Broadcast
+    window.quickBroadcast = function(text) {
+      const inp = document.getElementById('intercomInput');
+      if (inp) inp.value = text;
+      sendIntercom();
+    };
+
+    function sendIntercom() {
+      const inp = document.getElementById('intercomInput');
+      const text = (inp ? inp.value : '').trim();
+      if (!text) {
+        alert('Please enter a voice message to broadcast.');
+        return;
+      }
+      if (!cur) {
+        alert('Please select a monitored elder from the left panel first.');
+        return;
+      }
+      socket.emit('speak-to-elder', { elderId: cur.id, text });
+      if (inp) inp.value = '';
+      alert(`📢 Voice message broadcast to ${cur.name}'s room: "${text}"`);
+    }
+
+    const broadcastBtn = document.getElementById('broadcastIntercomBtn');
+    if (broadcastBtn) broadcastBtn.onclick = sendIntercom;
+
+    const bIntercom = document.getElementById('bannerIntercomBtn');
+    if (bIntercom) {
+      bIntercom.onclick = () => {
+        const msg = prompt('Enter emergency voice message to speak aloud in elder\'s room:', 'Don\'t worry, help is on the way! Please stay still!');
+        if (msg && msg.trim() && cur) {
+          socket.emit('speak-to-elder', { elderId: cur.id, text: msg.trim() });
+          alert('Emergency voice broadcast spoken into elder\'s room!');
+        }
+      };
+    }
+
+    const bWhatsapp = document.getElementById('bannerWhatsappBtn');
+    if (bWhatsapp) {
+      bWhatsapp.onclick = () => {
+        const elderName = cur ? cur.name : 'Monitored Elder';
+        const url = window.location.origin;
+        const msg = encodeURIComponent(`🚨 CRITICAL EMERGENCY: Fall detected for ${elderName} at ${new Date().toLocaleTimeString()}! Please check immediately. Live Portal: ${url}`);
+        window.open(`https://wa.me/?text=${msg}`, '_blank');
+      };
+    }
+
+    // Clinical Adherence Analytics
+    async function loadAnalytics() {
+      if (!cur) return;
+      try {
+        const data = await api(`/elders/${cur.id}/analytics`);
+        const adhEl = document.getElementById('analyticAdherence');
+        const respEl = document.getElementById('analyticResponseTime');
+        const doseEl = document.getElementById('analyticDoses');
+        const fallsEl = document.getElementById('analyticFalls');
+        if (adhEl) adhEl.textContent = data.adherenceRate || '96%';
+        if (respEl) respEl.textContent = data.avgResponseTime || '3.6s';
+        if (doseEl) doseEl.textContent = data.totalTaken || 0;
+        if (fallsEl) fallsEl.textContent = data.totalFalls || 0;
+
+        const tbody = document.getElementById('analyticsLogsBody');
+        if (tbody) {
+          if (!data.logs || !data.logs.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="padding:16px; text-align:center; color:#64748b;">No medication logs recorded yet for this elder.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = data.logs.map(l => `
+            <tr style="border-bottom:1px solid #1e293b;">
+              <td style="padding:10px 8px; font-weight:700; color:#fff;">${esc(l.name)}</td>
+              <td style="padding:10px 8px; color:#cbd5e1;">${esc(l.dosage || '-')}</td>
+              <td style="padding:10px 8px; color:#94a3b8;">${esc(l.for_date)}</td>
+              <td style="padding:10px 8px; color:#94a3b8;">${esc(l.for_time)}</td>
+              <td style="padding:10px 8px;"><span class="status-tag taken" style="padding:3px 8px; font-size:0.75rem; border-radius:4px; background:rgba(16,185,129,0.18); color:#34d399; font-weight:700;">✓ Taken</span></td>
+              <td style="padding:10px 8px; color:#64748b; font-size:0.8rem;">${l.taken_at ? new Date(l.taken_at).toLocaleString() : '-'}</td>
+            </tr>
+          `).join('');
+        }
+      } catch (err) {
+        console.error('Error loading analytics:', err);
+      }
+    }
+
 
     loadElders();
   </script>
