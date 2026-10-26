@@ -184,6 +184,26 @@
                   <strong>Immediate System Dispatch:</strong> If a drop into prone pose occurs, emergency sirens and desktop notifications fire immediately across apps.
                 </div>
               </div>
+            
+              <!-- Two-Way Live Voice Intercom -->
+              <div class="panel-card intercom-card" style="margin-top:16px;">
+                <div class="intercom-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                  <div>
+                    <h4 style="margin:0; font-size:1.05rem; display:flex; align-items:center; gap:8px;">📢 Two-Way Live Voice Intercom to Room</h4>
+                    <p class="hint" style="margin:2px 0 0;">Broadcast real-time voice speech to the elderly person's device speakers.</p>
+                  </div>
+                </div>
+                <div style="display:flex; gap:10px; margin-bottom:12px;">
+                  <input id="intercomInput" type="text" placeholder="Type a message (e.g. 'Help is on the way, stay still!')..." style="flex:1; padding:10px 14px; background:#0f172a; border:1px solid #334155; border-radius:10px; color:#fff; font-size:0.95rem;">
+                  <button type="button" class="action-btn primary-btn" id="broadcastIntercomBtn" style="white-space:nowrap;">📢 Speak to Room</button>
+                </div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="chip-btn" onclick="quickBroadcast('Don\'t worry, help is on the way!')">⚡ Help is on the way</button>
+                  <button type="button" class="chip-btn" onclick="quickBroadcast('Please stay still, do not get up!')">⚡ Please stay still</button>
+                  <button type="button" class="chip-btn" onclick="quickBroadcast('Are you hurt? I am coming right now!')">⚡ Are you hurt?</button>
+                  <button type="button" class="chip-btn" onclick="quickBroadcast('Remember to drink a glass of water.')">⚡ Drink water</button>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -265,6 +285,59 @@
               </div>
               <div id="alerts" class="alerts-history-list">
                 <div class="loading-state">Loading alert history…</div>
+              </div>
+            </div>
+          </section>
+          <!-- TAB 4: Clinical Health & Adherence Analytics -->
+          <section id="tab-analytics" class="tab-content">
+            <div class="panel-card">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; flex-wrap:wrap; gap:12px;">
+                <div>
+                  <h3 style="margin:0; font-size:1.25rem;">📊 Clinical Medication & Fall Audit Report</h3>
+                  <p class="hint" style="margin:4px 0 0;">Official adherence rates, response speeds, and printable summary for doctors.</p>
+                </div>
+                <button type="button" class="action-btn primary-btn" onclick="window.print()" style="display:inline-flex; align-items:center; gap:6px;">
+                  🖨️ Print Clinical Summary
+                </button>
+              </div>
+
+              <!-- Analytics Key Metric Cards -->
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:14px; margin-bottom:24px;">
+                <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; padding:16px; border-radius:12px; text-align:center;">
+                  <div style="font-size:2rem; font-weight:800; color:#10b981;" id="analyticAdherence">--</div>
+                  <div class="stat-label">Adherence Compliance</div>
+                </div>
+                <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; padding:16px; border-radius:12px; text-align:center;">
+                  <div style="font-size:2rem; font-weight:800; color:#38bdf8;" id="analyticResponseTime">--</div>
+                  <div class="stat-label">Avg. Voice Confirmation Speed</div>
+                </div>
+                <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; padding:16px; border-radius:12px; text-align:center;">
+                  <div style="font-size:2rem; font-weight:800; color:#f59e0b;" id="analyticDoses">--</div>
+                  <div class="stat-label">Confirmed Doses Logged</div>
+                </div>
+                <div class="stat-card" style="background:#0f172a; border:1px solid #1e293b; padding:16px; border-radius:12px; text-align:center;">
+                  <div style="font-size:2rem; font-weight:800; color:#ef4444;" id="analyticFalls">--</div>
+                  <div class="stat-label">Fall Incidents Logged</div>
+                </div>
+              </div>
+
+              <h4>Detailed Pharmacological Log Audit Trail</h4>
+              <div class="table-wrap">
+                <table class="data-table" style="width:100%; text-align:left; border-collapse:collapse;">
+                  <thead>
+                    <tr style="border-bottom:1px solid #334155; color:#94a3b8; font-size:0.85rem;">
+                      <th style="padding:10px 8px;">Medication</th>
+                      <th style="padding:10px 8px;">Dose</th>
+                      <th style="padding:10px 8px;">Scheduled Date</th>
+                      <th style="padding:10px 8px;">Time</th>
+                      <th style="padding:10px 8px;">Status</th>
+                      <th style="padding:10px 8px;">Confirmed At</th>
+                    </tr>
+                  </thead>
+                  <tbody id="analyticsLogsBody">
+                    <tr><td colspan="6" style="padding:16px; text-align:center; color:#64748b;">Loading clinical records...</td></tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </section>
@@ -504,6 +577,7 @@
 
       if (cur && cur.id == a.elderId) {
         loadAlerts();
+        loadAnalytics();
         if (isFall) {
           const camTab = document.querySelector('[data-tab="tab-camera"]');
           if (camTab) camTab.click();

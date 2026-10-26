@@ -443,6 +443,15 @@ setInterval(() => {
 // Immediate trigger from caregiver dashboard
 socket.on('ring-med', (m) => ring(m));
 
+// Emergency Two-Way Intercom Broadcast from Caregiver
+socket.on('speak-message', async ({ text }) => {
+  if (!text) return;
+  playAlertChime();
+  await say(`Caregiver announcement: ${text}`, 'en');
+  setStatus(`Caregiver message: "${text}"`, 'ok');
+});
+
+
 function SpeechRec() {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
