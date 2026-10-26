@@ -68,19 +68,19 @@ npm install
 npm start
 ```
 
-Open your browser to: **[http://localhost:3000](http://localhost:3000)**
+Open your browser to: **[elder-care.up.railway.app](elder-care.up.railway.app)**
 
 ---
 
 ## 📱 How to Demo the System
 
 ### Step 1: Open the Caregiver Dashboard
-1. On [http://localhost:3000](http://localhost:3000), enter your name, email, and password to create a caregiver account or sign in.
+1. On [elder-care.up.railway.app](elder-care.up.railway.app), enter your name, email, and password to create a caregiver account or sign in.
 2. Under **Monitored Persons**, click **+ Add** and enter the elder's name (e.g. *Robert Connor*) and age.
 3. Note the 6-character pairing code (e.g. `ABC123`).
 
 ### Step 2: Open the Elderly Person Dashboard
-1. Open a new browser window or open the app on a second device / tablet on the same Wi-Fi network: `http://<your-computer-ip>:3000`.
+1. Open a new browser window or open the app on a second device / tablet on the same Wi-Fi network: `http://elder-care.up.railway.app`.
 2. Enter the pairing code under **Home device** and click **Open Elderly Dashboard**.
 3. Click **▶ Start Protection** and allow Camera and Microphone permissions.
 4. You will see the live camera feed with an overlaid neon skeleton tracking body movements in real-time.

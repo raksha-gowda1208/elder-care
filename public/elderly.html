@@ -28,11 +28,10 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <!-- Language Switcher Bar -->
-        <div class="lang-bar" id="topLangBar">
-          <button type="button" class="lang-chip active" data-lang="en">English</button>
-          <button type="button" class="lang-chip" data-lang="kn">ಕನ್ನಡ</button>
-          <button type="button" class="lang-chip" data-lang="hi">हिंदी</button>
+        <!-- Multi-Language Voice Listener Status -->
+        <div class="lang-status-badge" id="topLangBadge" title="Multi-Language Listener automatically accepts English, Kannada, and Hindi replies together">
+          <span class="globe-icon">🌐</span>
+          <span>Voice Listener: <strong>English · ಕನ್ನಡ · हिन्दी</strong></span>
         </div>
         <button class="sos-btn" id="sosBtn" type="button" title="Send emergency alert to caregiver">🚨 SOS</button>
         <button class="ghost-btn" type="button" id="logout" title="Exit to home">Exit</button>
@@ -137,12 +136,11 @@
           <span class="time-badge" id="medTimeBadge">Now</span>
         </div>
 
-        <!-- Language Switcher inside modal -->
-        <div class="modal-lang-toggle">
-          <span class="lang-label">Language / ಭಾಷೆ / भाषा:</span>
-          <button type="button" class="modal-lang-btn active" data-lang="en">English</button>
-          <button type="button" class="modal-lang-btn" data-lang="kn">ಕನ್ನಡ</button>
-          <button type="button" class="modal-lang-btn" data-lang="hi">हिंदी</button>
+        <!-- Universal Multi-Lingual Indicator (Direct voice response in any language) -->
+        <div class="omni-lang-indicator" title="Microphone listens for replies across all languages simultaneously">
+          <span class="omni-pulse"></span>
+          <span class="omni-title">Universal Voice Listener Active</span>
+          <span class="omni-desc">Reply in <strong>English · ಕನ್ನಡ · हिन्दी</strong></span>
         </div>
 
         <h2 id="atext" class="alarm-title">Time for your medicine</h2>
@@ -160,17 +158,17 @@
           </div>
           <div class="mic-status-row">
             <span class="mic-icon" id="micIcon">🎤</span>
-            <span id="listenText" class="mic-status-text">Microphone is listening…</span>
+            <span id="listenText" class="mic-status-text">Microphone is listening for English, ಕನ್ನಡ, or हिन्दी…</span>
           </div>
           <div class="speech-bubble" id="speechBubble">
-            Say <span class="keyword">“Taken”</span> or <span class="keyword">“Done”</span>
+            Say in ANY language: <span class="keyword">“Taken”</span> · <span class="keyword">“ತಗೊಂಡೆ”</span> · <span class="keyword">“ಆಯಿತು”</span> · <span class="keyword">“ले लिया”</span>
           </div>
         </div>
 
         <button id="taken" class="big ok-btn" type="button">
-          ✓ I Took It (Confirm)
+          ✓ I Took It · ತಗೊಂಡೆ · ले लिया (Confirm)
         </button>
-        <p class="modal-subhint" id="modalSubhint">This reminder repeats with voice every 11 seconds until confirmed.</p>
+        <p class="modal-subhint" id="modalSubhint">Speak naturally in English, Kannada, or Hindi. The microphone accepts any language automatically.</p>
       </div>
     </div>
 

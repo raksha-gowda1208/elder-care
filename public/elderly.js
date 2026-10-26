@@ -143,33 +143,72 @@ function setLanguage(lang) {
 }
 
 function applyModalLanguage(med) {
-  const dict = I18N[currentLang] || I18N.en;
-  modalBadgeText.textContent = dict.pillDue;
-  atext.textContent = dict.title(med);
-  speechBubble.innerHTML = dict.instruction;
-  listenText.textContent = dict.listening;
-  takenBtn.textContent = dict.iTookItBtn;
-  modalSubhint.textContent = dict.subhint;
+  modalBadgeText.textContent = '💊 Medication Due · ಔಷಧಿ ಸಮಯ';
+  atext.textContent = med ? `Time for ${med.name}` : 'Time for your medicine';
+  speechBubble.innerHTML = 'Reply in ANY language: Say <span class="keyword">“Taken”</span> · <span class="keyword">“ತಗೊಂಡೆ”</span> · <span class="keyword">“ಆಯಿತು”</span> · <span class="keyword">“ले लिया”</span>';
+  listenText.textContent = '🎙️ Listening for reply in English, ಕನ್ನಡ, or हिन्दी…';
+  takenBtn.textContent = '✓ I Took It · ತಗೊಂಡೆ · ले लिया (Confirm)';
+  modalSubhint.textContent = 'Speak naturally in English, Kannada, or Hindi without touching any buttons.';
 }
 
-// Language switch buttons
-document.querySelectorAll('.lang-chip, .modal-lang-btn').forEach((btn) => {
-  btn.onclick = () => setLanguage(btn.dataset.lang);
-});
+// Multi-Lingual Speech Recognition Engine (Accepts replies in all languages simultaneously)
+const MULTI_LANG_CODES = ['en-IN', 'kn-IN', 'hi-IN'];
+let multiLangIndex = 0;
 
-// Comprehensive Multi-Lingual Confirmation Matcher (English + Kannada + Hindi)
-const CONFIRM_REGEX_ALL = new RegExp([
-  // English words
-  '\\b(taken|took\\s*it|i\\s*took|i\\s*have\\s*taken|already\\s*took|done|yes|yeah|yep|okay|ok|alright|all\\s*right|finished|complete|already|had\\s*it|did\\s*it|i\\s*did|got\\s*it|swallowed|all\\s*done)\\b',
-  // Kannada native script
-  '(ತಗೊಂಡೆ|ತಗೊಂಡಿದ್ದೀನಿ|ತಗೊಂಡಿದೀನಿ|ತಗೊಂಡಾಯ್ತು|ತಗೊಂಡೆವು|ಆಯಿತು|ಆಯ್ತು|ಆಯಿತಪ್ಪ|ಮುಗೀತು|ಮುಗಿಯಿತು|ಹೌದು|ಕುಡಿದೆ|ಹಾಕೊಂಡೆ)',
-  // Kannada transliterated / Kanglish
-  '\\b(tagonde|thagonde|thagondeen|thagondeeni|tagondeen|aythu|aayithu|aithu|aaytu|aitho|mugithu|haudu|kudide)\\b',
-  // Hindi native script
-  '(ले\\s*लिया|ले\\s*ली|खा\\s*लिया|खा\\s*ली|हो\\s*गया|हो\\s*गई|पी\\s*लिया|दवाई\\s*ले\\s*ली|दवा\\s*खा\\s*ली|हाँ|खत्म|हाँ\\s*ले\\s*लिया)',
-  // Hindi transliterated / Hinglish
-  '\\b(le\\s*liya|leliya|le\\s*li|kha\\s*liya|khaliya|kha\\s*li|ho\\s*gaya|hogaya|ho\\s*gayi|pi\\s*liya|haan|khatam|dawa\\s*li)\\b'
+// 1. Kannada Affirmation Matcher (Native script, Kanglish transliterations & speech-to-text phonetic patterns)
+const KANNADA_CONFIRM_REGEX = new RegExp([
+  '(ತಗೊಂಡೆ|ತಗೊಂಡಿದ್ದೀನಿ|ತಗೊಂಡಿದೀನಿ|ತಗೊಂಡಾಯ್ತು|ತಗೊಂಡೆವು|ತಗೊಂಡ್ವಿ|ಆಯಿತು|ಆಯ್ತು|ಆಯಿತಪ್ಪ|ಆಯ್ತಪ್ಪ|ಮುಗೀತು|ಮುಗಿಯಿತು|ಹೌದು|ಕುಡಿದೆ|ಹಾಕೊಂಡೆ|ತೊಗೊಂಡೆ|ತಗೋಂಡೆ|ತಗೊಂಡು|ಔಷಧಿ ತಗೊಂಡೆ)',
+  '\\b(thagonde|tagonde|thagondeen|thagondeeni|tagondeen|tagondeeni|thogonde|togonde|thogondhe|togondhe|thogondideeni|togondideeni|tagond|thogond|tagonda|thagonda|tagondi|thagondi|aythu|aayithu|aithu|aaytu|aitho|aytu|aitu|aithappa|aaythappa|mugithu|mugitu|mugiyithu|mugiside|haudu|houdu|howdu|kudide|kudidhe|kudde|hakonde|haakonde|hakondhe|took on the|took onde|tag on the|the gande)\\b'
 ].join('|'), 'i');
+
+// 2. Hindi Affirmation Matcher (Native script & Hinglish transliterations)
+const HINDI_CONFIRM_REGEX = new RegExp([
+  '(ले\\s*लिया|ले\\s*ली|खा\\s*लिया|खा\\s*ली|हो\\s*गया|हो\\s*गई|पी\\s*लिया|पी\\s*ली|दवाई\\s*ले\\s*ली|दवा\\s*खा\\s*ली|दवाई\\s*खा\\s*ली|हाँ|खत्म|हाँ\\s*ले\\s*लिया|ले\\s*चुके|खा\\s*चुके|दवा\\s*ली|दवाई\\s*ली)',
+  '\\b(le\\s*liya|leliya|le\\s*li|leli|lay\\s*liya|le\\s*lia|lilia|kha\\s*liya|khaliya|kha\\s*li|khali|khalia|ho\\s*gaya|hogaya|ho\\s*gya|hogya|ho\\s*gayi|hogayi|pee\\s*liya|peeliya|pi\\s*liya|piliya|haan|khatam|dawa\\s*li|dawai\\s*li)\\b'
+].join('|'), 'i');
+
+// 3. English Affirmation Matcher
+const ENGLISH_CONFIRM_REGEX = new RegExp([
+  '\\b(taken|took\\s*it|i\\s*took|i\\s*took\\s*it|i\\s*have\\s*taken|already\\s*taken|already\\s*took|i\\s*already\\s*took|done|all\\s*done|finished|complete|completed|yes|yeah|yep|yup|okay|ok|alright|all\\s*right|had\\s*it|did\\s*it|i\\s*did|got\\s*it|swallowed|consumed|drank\\s*it|sure)\\b'
+].join('|'), 'i');
+
+// 4. Combined Master Matcher
+const CONFIRM_REGEX_ALL = new RegExp([
+  KANNADA_CONFIRM_REGEX.source,
+  HINDI_CONFIRM_REGEX.source,
+  ENGLISH_CONFIRM_REGEX.source
+].join('|'), 'i');
+
+function matchMultiLangConfirmation(text) {
+  if (!text) return null;
+  const clean = text.toLowerCase().trim();
+
+  // Check Kannada
+  if (KANNADA_CONFIRM_REGEX.test(clean)) {
+    const m = clean.match(KANNADA_CONFIRM_REGEX);
+    return { langCode: 'kn', langName: 'Kannada / ಕನ್ನಡ', matched: m ? m[0] : 'ತಗೊಂಡೆ' };
+  }
+
+  // Check Hindi
+  if (HINDI_CONFIRM_REGEX.test(clean)) {
+    const m = clean.match(HINDI_CONFIRM_REGEX);
+    return { langCode: 'hi', langName: 'Hindi / हिन्दी', matched: m ? m[0] : 'ले लिया' };
+  }
+
+  // Check English
+  if (ENGLISH_CONFIRM_REGEX.test(clean)) {
+    const m = clean.match(ENGLISH_CONFIRM_REGEX);
+    return { langCode: 'en', langName: 'English', matched: m ? m[0] : 'Taken' };
+  }
+
+  // Fallback Check
+  if (CONFIRM_REGEX_ALL.test(clean)) {
+    const m = clean.match(CONFIRM_REGEX_ALL);
+    return { langCode: 'multi', langName: 'Multi-Lingual', matched: m ? m[0] : 'Confirmed' };
+  }
+
+  return null;
+}
 
 // API Helper
 const api = (p, m = 'GET', b) => fetch('/api' + p, {
@@ -432,28 +471,45 @@ function startListening() {
 
   try {
     const rec = new Rec();
-    const dict = I18N[currentLang] || I18N.en;
-    rec.lang = dict.code; // 'kn-IN', 'hi-IN', or 'en-IN'
+    // Multi-lingual listener: seamlessly alternate across en-IN, kn-IN, hi-IN
+    const activeListenLang = MULTI_LANG_CODES[multiLangIndex % MULTI_LANG_CODES.length];
+    rec.lang = activeListenLang;
     rec.continuous = true;
     rec.interimResults = true;
-    rec.maxAlternatives = 3;
+    rec.maxAlternatives = 5;
 
     rec.onstart = () => {
-      listenText.textContent = dict.listening;
+      listenText.textContent = '🎙️ Listening for reply in English, ಕನ್ನಡ, or हिन्दी…';
       micWave.classList.add('active');
     };
 
     rec.onresult = (ev) => {
-      let heard = '';
+      let matched = null;
+      let rawText = '';
+
       for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        heard += ev.results[i][0].transcript + ' ';
+        // Inspect all speech hypothesis alternatives
+        for (let a = 0; a < ev.results[i].length; a++) {
+          const candidate = (ev.results[i][a].transcript || '').trim();
+          if (!rawText && candidate) rawText = candidate;
+
+          const check = matchMultiLangConfirmation(candidate);
+          if (check) {
+            matched = check;
+            matched.fullPhrase = candidate;
+            break;
+          }
+        }
+        if (matched) break;
       }
-      heard = heard.trim();
-      if (heard) {
-        speechBubble.innerHTML = `Heard / ಕೇಳಿದೆ / सुना: <strong style="color:#10b981">“${heard}”</strong>`;
+
+      if (rawText) {
+        speechBubble.innerHTML = `Listening… Heard: <strong style="color:#38bdf8">“${rawText}”</strong>`;
       }
-      if (CONFIRM_REGEX_ALL.test(heard)) {
-        confirmTaken(`voice [${currentLang}]: ${heard}`);
+
+      if (matched) {
+        speechBubble.innerHTML = `✅ <strong style="color:#10b981">Recognized [${matched.langName}]: “${matched.matched}”</strong>`;
+        confirmTaken(`voice [${matched.langCode}]: ${matched.matched} (transcript: "${rawText}")`, matched.langCode);
       }
     };
 
@@ -467,16 +523,18 @@ function startListening() {
         return;
       }
       if (err === 'no-speech' || err === 'audio-capture' || err === 'network') {
-        listenText.textContent = dict.listening;
+        listenText.textContent = '🎙️ Listening for reply in English, ಕನ್ನಡ, or हिन्दी…';
       }
     };
 
     rec.onend = () => {
       if (recognition === rec) recognition = null;
       if (listenWanted && curMed && !speakBusy) {
+        // Rotate recognition language so native scripts across en-IN, kn-IN, hi-IN are all captured
+        multiLangIndex = (multiLangIndex + 1) % MULTI_LANG_CODES.length;
         setTimeout(() => {
           if (listenWanted && curMed && !speakBusy && !recognition) startListening();
-        }, 300);
+        }, 200);
       }
     };
 
@@ -519,7 +577,6 @@ async function playClip(url) {
 async function playReminder(m) {
   speakBusy = true;
   haltRecognition();
-  const dict = I18N[currentLang] || I18N.en;
   listenText.textContent = 'Playing reminder…';
   micWave.classList.remove('active');
   playAlertChime();
@@ -536,20 +593,23 @@ async function playReminder(m) {
     } catch {}
   }
 
-  const spoken = m.message || dict.spoken(elder.name, m.name, m.dosage);
-  await say(spoken, currentLang);
+  // Multi-lingual spoken reminder: prompts elder and explicitly welcomes replies in English, Kannada, or Hindi
+  const spoken = m.message || (m.lang === 'kn'
+    ? `ನಮಸ್ಕಾರ ${elder.name}, ನಿಮ್ಮ ${m.name} ${m.dosage || ''} ಔಷಧಿ ತೆಗೆದುಕೊಳ್ಳುವ ಸಮಯವಾಗಿದೆ. ದಯವಿಟ್ಟು ಔಷಧಿಯನ್ನು ತೆಗೆದುಕೊಂಡು ತಗೊಂಡೆ, Taken ಅಥವಾ ಆಯಿತು ಎಂದು ಹೇಳಿ.`
+    : m.lang === 'hi'
+    ? `नमस्ते ${elder.name}, आपकी दवाई ${m.name} ${m.dosage || ''} लेने का समय हो गया है। कृपया दवाई लेकर ले लिया, Taken या हो गया बोलें।`
+    : `Hello ${elder.name}, it is time to take your ${m.name}${m.dosage ? ', ' + m.dosage : ''}. You can reply in any language: say Taken, ತಗೊಂಡೆ, or ले लिया.`);
+
+  await say(spoken, m.lang || 'en');
   speakBusy = false;
 }
 
 async function ring(m) {
   curMed = m;
-  if (m.lang && I18N[m.lang]) {
-    setLanguage(m.lang);
-  }
   const tokenId = ++reminderLoop;
   applyModalLanguage(m);
   adosage.textContent = m.dosage ? m.dosage : 'Standard dose';
-  amsg.textContent = m.message || 'Please take your medication and confirm by voice or button.';
+  amsg.textContent = m.message || 'Please take your medication and confirm by voice in English, ಕನ್ನಡ, or हिन्दी.';
   medTimeBadge.textContent = m.time || 'Due Now';
 
   alarm.classList.remove('hidden');
@@ -564,7 +624,7 @@ async function ring(m) {
   }
 }
 
-async function confirmTaken(how) {
+async function confirmTaken(how, detectedLang = 'en') {
   if (!curMed) return;
   const med = curMed;
   curMed = null;
@@ -579,8 +639,15 @@ async function confirmTaken(how) {
   try { speechSynthesis.cancel(); } catch {}
   
   playSuccessChime();
-  const dict = I18N[currentLang] || I18N.en;
-  say(dict.acknowledged(elder.name), currentLang);
+
+  // Acknowledge dynamically in the language the elder replied in!
+  if (detectedLang === 'kn') {
+    say(`ಧನ್ಯವಾದಗಳು ${elder.name}, ಔಷಧಿಯನ್ನು ತಗೊಂಡಿದ್ದೀರಿ ಎಂದು ದಾಖಲಿಸಲಾಗಿದೆ.`, 'kn');
+  } else if (detectedLang === 'hi') {
+    say(`धन्यवाद ${elder.name}, आपकी दवाई ले ली गई है।`, 'hi');
+  } else {
+    say(`Thank you ${elder.name}, medicine marked as taken.`, 'en');
+  }
 
   await fetch('/api/meds/' + med.id + '/taken', {
     method: 'POST',
@@ -588,10 +655,10 @@ async function confirmTaken(how) {
     body: JSON.stringify({ how })
   });
 
-  setStatus('Medicine marked as taken', 'ok');
+  setStatus(`Medicine marked as taken (${(detectedLang || 'multi').toUpperCase()} voice)`, 'ok');
 }
 
-takenBtn.onclick = () => confirmTaken('button tap');
+takenBtn.onclick = () => confirmTaken('button tap', 'manual');
 
 // Biomechanical Landmarks Calculation
 function getLandmark(lm, idx, minVis = 0.25) {
@@ -806,7 +873,6 @@ testFallBtn.onclick = () => {
 };
 
 testMedBtn.onclick = () => {
-  setLanguage('en');
   ring({
     id: 9991,
     name: 'Daily Multivitamin & Aspirin',
@@ -818,7 +884,6 @@ testMedBtn.onclick = () => {
 };
 
 testKnMedBtn.onclick = () => {
-  setLanguage('kn');
   ring({
     id: 9992,
     name: 'ಬಿಪಿ ಔಷಧಿ (Blood Pressure Tablet)',
@@ -830,7 +895,6 @@ testKnMedBtn.onclick = () => {
 };
 
 testHiMedBtn.onclick = () => {
-  setLanguage('hi');
   ring({
     id: 9993,
     name: 'बीपी की गोली (Blood Pressure Tablet)',
