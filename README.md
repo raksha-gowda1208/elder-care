@@ -58,6 +58,15 @@
 * **Dual-Tone Web Audio Synthesizer**: Parametric audio oscillator toggling between **$880\text{Hz}$ (A5 pitch)** and **$660\text{Hz}$ (E5 pitch)** at 2.5 Hz, piercing through doors and background noise.
 * **Native OS Desktop Push**: Dispatches HTML5 system notifications with `requireInteraction: true`, remaining visible over other open apps even when the caregiver's browser tab is minimized.
 
+### 7. 🎬 Visual Fall Incident Playback & Forensic Scrubber
+* **Pre-Fall Rolling Circular Buffer**: Continuously maintains an 18-frame circular ring buffer sampling at ~300ms intervals, storing ~5.5 seconds of biomechanical motion leading directly into a fall.
+* **Interactive Forensic Scrubber Player**: When a fall is detected, caregivers can open the incident replay modal, scrub frame-by-frame with an interactive slider, adjust playback speed (1.0x realtime, 0.5x slow-mo, 0.25x forensic), and view live torso tilt angle ($\theta$) and posture classification for every frame.
+* **Persistent Incident Audit Trail**: Fall replays are archived in SQLite and can be reviewed at any time from Tab 3 (*Safety & Fall Alerts*).
+
+### 8. 🔕 Remote Emergency Alarm Silencing & Caregiver Dismissal
+* **One-Click Remote Siren Deactivation**: Caregivers can silence the piercing emergency siren and dismiss the red alert modal on the elder's dashboard remotely with a single tap (**`[ 🔕 Silence Elder Room ]`**).
+* **Multilingual Spoken Reassurance**: Upon remote dismissal, the elderly dashboard terminates the siren immediately and speaks a soothing confirmation in the elder's chosen language (English, Kannada, or Hindi) letting them know their caregiver has acknowledged and silenced the alert.
+
 ---
 
 ## 🏗️ System Architecture
@@ -77,19 +86,22 @@
 |   - Torso Tilt Angle Theta = |arctan2(dy, dx)| * (180/pi) < 35 deg                                  |
 |   - Bounding Box Aspect Ratio AR = Width / Height > 1.25                                           |
 |   - Persistence Debounce Filter (t_fall >= 1.8 s)                                                  |
+|   - Rolling Circular Frame Buffer (18 frames @ 300ms = 5.5s pre-fall capture)                      |
 |        |                                                                                           |
 |   Multilingual Speech Adherence Loop (Web Speech API)                                              |
 |   - Spoken Reminders (KN / EN / HI)                                                                |
 |   - Continuous ASR + Phonetic Regex Engine (e.g., 'the gunday' -> 'ತಗೊಂಡೆ')                        |
+|   - Remote Alarm Dismissal Listener (cancels siren, speaks reassuring voice acknowledgment)        |
 +---------------------------------------+------------------------------------------------------------+
                                         | Encrypted WebSocket Telemetry (Socket.io)
-                                        | (Coordinates, Booleans, Confirmation Events)
+                                        | (Coordinates, Booleans, Confirmation Events, Replay Frames)
                                         v
 +----------------------------------------------------------------------------------------------------+
 |  [Node.js Telepresence Broker Core]                                                                |
 |   - Express.js REST API (/api/elders/:id/analytics)                                               |
-|   - Full-Duplex Socket.IO Signaling (Room: elder:id)                                               |
-|   - SQLite3 Database (WAL Journaling: caregivers, elders, medications, logs, alerts)               |
+|   - Full-Duplex Socket.IO Signaling (Room: elder:id, caregiver:id)                                |
+|   - Remote Silence Dispatcher (dismiss-elder-alert -> remote-dismiss-alarm)                        |
+|   - SQLite3 Database (WAL Journaling: caregivers, elders, medications, logs, alerts + replay_frames)|
 +---------------------------------------+------------------------------------------------------------+
                                         | Sub-200ms Event Dispatch & Intercom
                                         v
@@ -100,7 +112,9 @@
 |   - Persistent Desktop OS Notification (requireInteraction: true)                                  |
 |   - Two-Way Ambient Caregiver Intercom ("Speak to Elder's Room")                                   |
 |   - One-Click WhatsApp Emergency Distress SOS Dispatch                                             |
+|   - Tab 3: Safety & Fall Alerts with 🎬 Visual Incident Replay Scrubber Player                     |
 |   - Tab 4: Clinical Adherence & Fall Audit Analytics with Doctor PDF Report Export                 |
+|   - One-Click Remote Elder Alarm Dismissal Button ([ 🔕 Silence Elder Room ])                      |
 +----------------------------------------------------------------------------------------------------+
 ```
 

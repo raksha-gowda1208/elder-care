@@ -97,10 +97,81 @@ function emitToCaregiver(caregiverId, event, payload) {
   io.to(`caregiver:${caregiverId}`).emit(event, payload);
 }
 
-async function createAlert(elder, type, detail) {
+function generateSimulatedFallFrames(name) {
+  const frames = [];
+  const stages = [
+    { t: -3.6, angle: 12, posture: 'Standing', head: [180, 50], torso: [180, 100], hips: [180, 130], knees: [180, 175], feet: [180, 215], color: '#10b981' },
+    { t: -3.2, angle: 14, posture: 'Standing', head: [180, 52], torso: [180, 102], hips: [180, 132], knees: [178, 176], feet: [180, 215], color: '#10b981' },
+    { t: -2.8, angle: 18, posture: 'Standing / Walking', head: [185, 54], torso: [182, 104], hips: [180, 133], knees: [175, 177], feet: [180, 215], color: '#10b981' },
+    { t: -2.4, angle: 28, posture: 'Balance Loss', head: [198, 62], torso: [188, 110], hips: [180, 138], knees: [170, 180], feet: [178, 215], color: '#f59e0b' },
+    { t: -2.0, angle: 41, posture: 'Tilting / Stumble', head: [215, 76], torso: [196, 120], hips: [180, 145], knees: [165, 185], feet: [175, 215], color: '#f59e0b' },
+    { t: -1.6, angle: 55, posture: 'Rapid Tilt', head: [235, 95], torso: [208, 132], hips: [180, 152], knees: [160, 190], feet: [172, 215], color: '#f59e0b' },
+    { t: -1.2, angle: 68, posture: 'Rapid Drop / Freefall', head: [255, 125], torso: [218, 150], hips: [180, 168], knees: [155, 198], feet: [170, 218], color: '#ef4444' },
+    { t: -0.8, angle: 78, posture: 'Impact Phase', head: [270, 158], torso: [225, 175], hips: [180, 188], knees: [150, 208], feet: [168, 220], color: '#ef4444' },
+    { t: -0.4, angle: 84, posture: 'Floor Contact', head: [280, 185], torso: [230, 195], hips: [180, 205], knees: [145, 215], feet: [165, 222], color: '#ef4444' },
+    { t: 0.0, angle: 88, posture: 'Lying / Prone Floor Collapse', head: [290, 200], torso: [235, 206], hips: [180, 210], knees: [140, 218], feet: [162, 223], color: '#ef4444' },
+    { t: 0.4, angle: 89, posture: 'Immobility (Floor)', head: [290, 201], torso: [235, 206], hips: [180, 210], knees: [140, 218], feet: [162, 223], color: '#ef4444' },
+    { t: 0.8, angle: 90, posture: 'Confirmed Collapse', head: [290, 201], torso: [235, 206], hips: [180, 210], knees: [140, 218], feet: [162, 223], color: '#ef4444' }
+  ];
+
+  const now = Date.now();
+  for (let i = 0; i < stages.length; i++) {
+    const s = stages[i];
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240">
+  <rect width="360" height="240" fill="#090d16"/>
+  <!-- Room Floor Line -->
+  <line x1="20" y1="225" x2="340" y2="225" stroke="#334155" stroke-width="2" stroke-dasharray="4,4"/>
+  <text x="340" y="220" fill="#64748b" font-size="10" text-anchor="end" font-family="sans-serif">FLOOR LEVEL</text>
+  
+  <!-- MediaPipe AI Skeleton Simulation -->
+  <!-- Legs -->
+  <line x1="${s.hips[0]}" y1="${s.hips[1]}" x2="${s.knees[0]}" y2="${s.knees[1]}" stroke="${s.color}" stroke-width="4" stroke-linecap="round"/>
+  <line x1="${s.knees[0]}" y1="${s.knees[1]}" x2="${s.feet[0]}" y2="${s.feet[1]}" stroke="${s.color}" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Torso & Spine -->
+  <line x1="${s.hips[0]}" y1="${s.hips[1]}" x2="${s.torso[0]}" y2="${s.torso[1]}" stroke="${s.color}" stroke-width="5" stroke-linecap="round"/>
+  <line x1="${s.torso[0]}" y1="${s.torso[1]}" x2="${s.head[0]}" y2="${s.head[1]}" stroke="${s.color}" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Arms -->
+  <line x1="${s.torso[0]}" y1="${s.torso[1]}" x2="${s.torso[0] - 25}" y2="${s.torso[1] + 25}" stroke="${s.color}" stroke-width="3" stroke-linecap="round"/>
+  <line x1="${s.torso[0]}" y1="${s.torso[1]}" x2="${s.torso[0] + 25}" y2="${s.torso[1] + 20}" stroke="${s.color}" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Joint Keypoint Dots -->
+  <circle cx="${s.head[0]}" cy="${s.head[1]}" r="8" fill="#38bdf8"/>
+  <circle cx="${s.torso[0]}" cy="${s.torso[1]}" r="5" fill="#f8fafc"/>
+  <circle cx="${s.hips[0]}" cy="${s.hips[1]}" r="5" fill="#f8fafc"/>
+  <circle cx="${s.knees[0]}" cy="${s.knees[1]}" r="5" fill="#f8fafc"/>
+  <circle cx="${s.feet[0]}" cy="${s.feet[1]}" r="5" fill="#f8fafc"/>
+
+  <!-- HUD Telemetry Stamp -->
+  <rect x="12" y="12" width="168" height="48" rx="6" fill="rgba(15,23,42,0.85)" stroke="#1e293b"/>
+  <text x="20" y="28" fill="#38bdf8" font-size="11" font-weight="bold" font-family="sans-serif">FRAME ${i + 1}/${stages.length} (${s.t > 0 ? '+' : ''}${s.t.toFixed(1)}s)</text>
+  <text x="20" y="44" fill="${s.color}" font-size="11" font-weight="bold" font-family="sans-serif">${s.posture} · ${s.angle}°</text>
+  
+  <text x="345" y="24" fill="#94a3b8" font-size="10" text-anchor="end" font-family="sans-serif">Simulated Fall Incident Replay</text>
+</svg>`.trim();
+
+    const dataUrl = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    frames.push({
+      t: now + Math.round(s.t * 1000),
+      offsetSec: s.t,
+      angle: s.angle,
+      posture: s.posture,
+      image: dataUrl
+    });
+  }
+  return frames;
+}
+
+async function createAlert(elder, type, detail, replayFrames = null) {
+  const framesJson = (replayFrames && Array.isArray(replayFrames) && replayFrames.length > 0)
+    ? JSON.stringify(replayFrames)
+    : null;
+
   const info = db.prepare(
-    'INSERT INTO alerts (elder_id, type, detail, emailed, email_info) VALUES (?, ?, ?, 1, ?)'
-  ).run(elder.id, type, detail, 'System desktop & siren notification dispatched');
+    'INSERT INTO alerts (elder_id, type, detail, emailed, email_info, replay_frames) VALUES (?, ?, ?, 1, ?, ?)'
+  ).run(elder.id, type, detail, 'System desktop & siren notification dispatched', framesJson);
 
   const alert = {
     id: info.lastInsertRowid,
@@ -108,13 +179,14 @@ async function createAlert(elder, type, detail) {
     name: elder.name,
     type,
     detail,
+    replayFrames: replayFrames || null,
     at: new Date().toISOString()
   };
 
   // INSTANT SOCKET ALERT DISPATCH (< 5ms)
   emitToCaregiver(elder.caregiver_id, 'alert', alert);
   if (type === 'fall') {
-    console.log(`[ALERT] Instant fall alert dispatched for ${elder.name} (< 10ms)`);
+    console.log(`[ALERT] Instant fall alert dispatched for ${elder.name} (< 10ms) with ${replayFrames ? replayFrames.length : 0} replay frames`);
   }
 
   return alert;
@@ -445,9 +517,23 @@ app.get('/api/elders/:id/alerts', auth, (req, res) => {
   const elder = elderForUser(req.user, Number(req.params.id));
   if (!elder) return res.status(404).json({ error: 'Elderly person not found' });
   const rows = db.prepare(
-    'SELECT id, type, detail, emailed, email_info, created_at FROM alerts WHERE elder_id = ? ORDER BY id DESC LIMIT 50'
+    'SELECT id, type, detail, emailed, email_info, replay_frames, created_at FROM alerts WHERE elder_id = ? ORDER BY id DESC LIMIT 50'
   ).all(elder.id);
-  res.json(rows);
+  res.json(rows.map((r) => {
+    let parsedFrames = null;
+    if (r.replay_frames) {
+      try { parsedFrames = JSON.parse(r.replay_frames); } catch {}
+    }
+    return {
+      id: r.id,
+      type: r.type,
+      detail: r.detail,
+      emailed: r.emailed,
+      email_info: r.email_info,
+      created_at: r.created_at,
+      replayFrames: parsedFrames
+    };
+  }));
 });
 
 // Trigger simulated fall alert for testing & demonstration
@@ -455,7 +541,8 @@ app.post('/api/elders/:id/test-fall', auth, async (req, res) => {
   const elder = elderForUser(req.user, Number(req.params.id));
   if (!elder) return res.status(404).json({ error: 'Elderly person not found' });
   try {
-    const alert = await createAlert(elder, 'fall', 'SIMULATION / TEST: Skeleton pose detected a rapid drop into a prone floor position');
+    const testFrames = generateSimulatedFallFrames(elder.name);
+    const alert = await createAlert(elder, 'fall', 'SIMULATION / TEST: Skeleton pose detected a rapid drop into a prone floor position', testFrames);
     res.json({ ok: true, alert });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -567,10 +654,23 @@ io.on('connection', (socket) => {
     if (!elder) return;
     try {
       const detail = data?.detail || 'Skeleton pose detected a rapid downward drop into a prone floor position';
-      await createAlert(elder, 'fall', detail);
+      const replayFrames = data?.replayFrames || null;
+      await createAlert(elder, 'fall', detail, replayFrames);
     } catch (err) {
       console.error('Fall alert failed:', err.message);
     }
+  });
+
+  // Caregiver remote alert dismissal to silence the elderly alarm
+  socket.on('dismiss-elder-alert', ({ elderId }) => {
+    if (user.role !== 'caregiver') return;
+    const elder = elderForUser(user, Number(elderId));
+    if (!elder) return;
+    io.to(`elder:${elder.id}`).emit('remote-dismiss-alarm', {
+      by: user.name || 'Caregiver',
+      at: new Date().toISOString()
+    });
+    console.log(`[ALERT] Remote alarm dismissal dispatched from caregiver ${user.id} (${user.name}) to elder ${elder.id}`);
   });
 
   

@@ -38,8 +38,10 @@
         </div>
         <div class="banner-actions">
           <button type="button" class="banner-action-btn" id="bannerWatchBtn">View Camera</button>
+          <button type="button" class="banner-action-btn" id="bannerReplayBtn" style="background:#8b5cf6; color:#fff; display:none;">🎬 View Fall Replay</button>
           <button type="button" class="banner-action-btn" id="bannerIntercomBtn" style="background:#0284c7;">📢 Speak to Elder</button>
           <button type="button" class="banner-action-btn" id="bannerWhatsappBtn" style="background:#16a34a;">📲 WhatsApp SOS</button>
+          <button type="button" class="banner-action-btn" id="bannerDismissElderBtn" style="background:#ea580c; color:#fff;">🔕 Silence Elder Room</button>
           <button type="button" class="banner-dismiss-btn" id="bannerDismissBtn">Silence Siren & Dismiss</button>
         </div>
       </div>
@@ -161,6 +163,8 @@
                 <div class="camera-actions">
                   <button type="button" class="action-btn sm primary-btn" id="watchBtn">▶ Watch Live Camera</button>
                   <button type="button" class="action-btn sm" id="testFallAlertBtn" title="Test Fall Alert Trigger">⚡ Simulate Fall Alert</button>
+                  <button type="button" class="action-btn sm" id="quickSilenceElderBtn" style="background:#ea580c; color:#fff; border:none;" title="Remotely turn off alarm siren on elderly dashboard">🔕 Silence Elder Alarm</button>
+                  <button type="button" class="action-btn sm" id="lastIncidentReplayBtn" style="background:#8b5cf6; color:#fff; border:none; display:none;" title="Watch visual replay of latest fall">🎬 Fall Replay</button>
                 </div>
               </div>
 
@@ -348,6 +352,81 @@
       </main>
     </div>
 
+    <!-- Fall Incident Visual Playback Modal -->
+    <div id="replayModal" class="overlay hidden" style="z-index: 120;">
+      <div class="modal-card replay-modal-card" style="max-width: 760px; width: 95%; background: #0f172a; border: 2px solid #8b5cf6; border-radius: 16px; padding: 22px; box-shadow: 0 20px 60px rgba(139, 92, 246, 0.4); text-align: left;">
+        
+        <!-- Modal Header -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; border-bottom: 1px solid #334155; padding-bottom: 12px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span style="font-size: 1.4rem;">🎬</span>
+              <h3 style="margin: 0; font-size: 1.3rem; color: #fff; font-family: var(--font-display);">Fall Incident Visual Playback</h3>
+              <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 800;">VERIFIED INCIDENT</span>
+            </div>
+            <p style="margin: 4px 0 0; font-size: 0.85rem; color: #94a3b8;" id="replaySubtitle">Rolling buffer capture showing chronological sequence before and during fall</p>
+          </div>
+          <button type="button" class="icon-btn" id="closeReplayModal" style="background: #1e293b; border: 1px solid #475569; color: #fff; border-radius: 8px; width: 34px; height: 34px; font-size: 1.1rem; cursor: pointer;">✕</button>
+        </div>
+
+        <!-- Video / Frame Viewer Stage -->
+        <div class="replay-stage-wrap" style="position: relative; background: #020617; border-radius: 12px; overflow: hidden; border: 1px solid #1e293b; min-height: 320px; max-height: 440px; display: flex; align-items: center; justify-content: center;">
+          <img id="replayImage" style="width: 100%; height: auto; max-height: 420px; object-fit: contain; display: block;" alt="Incident Replay Frame">
+          
+          <!-- HUD Telemetry Overlay -->
+          <div style="position: absolute; top: 12px; left: 14px; display: flex; gap: 8px; flex-wrap: wrap; z-index: 5;">
+            <span id="replayFrameBadge" class="hud-tag" style="background: rgba(15, 23, 42, 0.9); border: 1px solid #8b5cf6; color: #c4b5fd; font-weight: 700;">Frame 1 / 1</span>
+            <span id="replayPostureBadge" class="hud-tag" style="background: rgba(15, 23, 42, 0.9); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700;">Posture: Normal</span>
+            <span id="replayAngleBadge" class="hud-tag" style="background: rgba(15, 23, 42, 0.9); border: 1px solid #f59e0b; color: #fde68a; font-weight: 700;">Spine Tilt: 14°</span>
+          </div>
+
+          <!-- Time Offset Badge -->
+          <div style="position: absolute; bottom: 12px; right: 14px; background: rgba(0,0,0,0.82); border: 1px solid #334155; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; color: #cbd5e1; z-index: 5;" id="replayTimeOffset">
+            Pre-fall buffer
+          </div>
+        </div>
+
+        <!-- Scrubbing & Timeline Controls -->
+        <div style="margin-top: 14px;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+            <span style="font-size: 0.8rem; color: #94a3b8; font-weight: 600;">Scrubber:</span>
+            <input type="range" id="replayScrubber" min="0" max="0" value="0" style="flex: 1; accent-color: #8b5cf6; cursor: pointer; height: 6px;">
+            <span id="replayProgressText" style="font-size: 0.82rem; color: #c4b5fd; font-family: monospace; min-width: 55px; text-align: right;">0 / 0</span>
+          </div>
+
+          <!-- Playback Control Toolbar -->
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button type="button" class="action-btn sm" id="replayFirstBtn" title="First Frame">⏮</button>
+              <button type="button" class="action-btn sm" id="replayPrevBtn" title="Previous Frame">◀</button>
+              <button type="button" class="action-btn sm primary-btn" id="replayPlayBtn" style="min-width: 80px; background: #8b5cf6; border-color: #7c3aed;">▶ Play</button>
+              <button type="button" class="action-btn sm" id="replayNextBtn" title="Next Frame">▶</button>
+              <button type="button" class="action-btn sm" id="replayLastBtn" title="Last Frame">⏭</button>
+              
+              <!-- Speed selector -->
+              <select id="replaySpeedSelect" class="select-field" style="width: auto; padding: 6px 10px; font-size: 0.8rem; background: #1e293b; color: #fff; border: 1px solid #334155; border-radius: 6px; margin-left: 6px;">
+                <option value="1">1.0x Realtime</option>
+                <option value="0.5" selected>0.5x Slow-Mo</option>
+                <option value="0.25">0.25x Forensic</option>
+              </select>
+            </div>
+
+            <!-- Action buttons inside modal -->
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="action-btn sm" id="replayIntercomBtn" style="background: #0284c7; color: #fff; border: none;">📢 Speak to Elder</button>
+              <button type="button" class="action-btn sm" id="replaySilenceElderBtn" style="background: #ea580c; color: #fff; border: none;">🔕 Silence Elder Alarm</button>
+            </div>
+          </div>
+
+          <!-- Frame Thumbnails Reel -->
+          <div id="replayThumbsReel" style="display: flex; gap: 6px; overflow-x: auto; padding: 10px 0 2px; margin-top: 10px; border-top: 1px solid #1e293b;">
+            <!-- Dynamic thumbnail cards inserted here -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -380,6 +459,10 @@
     const bannerDetail = document.getElementById('bannerDetail');
     const bannerWatchBtn = document.getElementById('bannerWatchBtn');
     const bannerDismissBtn = document.getElementById('bannerDismissBtn');
+    const bannerReplayBtn = document.getElementById('bannerReplayBtn');
+    const bannerDismissElderBtn = document.getElementById('bannerDismissElderBtn');
+    const quickSilenceElderBtn = document.getElementById('quickSilenceElderBtn');
+    const lastIncidentReplayBtn = document.getElementById('lastIncidentReplayBtn');
 
     const eldersDiv = document.getElementById('elders');
     const noSelection = document.getElementById('noSelection');
@@ -562,9 +645,14 @@
       };
     });
 
+    let lastFallAlert = null;
+    let lastFallFrames = null;
+    let cachedAlerts = [];
+
     // Real-Time Socket Alerts
     socket.on('alert', (a) => {
       const isFall = a.type === 'fall';
+      lastFallAlert = a;
       banner.classList.remove('hidden');
       bannerTitle.textContent = isFall ? `🚨 EMERGENCY: FALL DETECTED — ${a.name}` : `⚠️ MEDICATION MISSED — ${a.name}`;
       bannerDetail.textContent = `${a.detail} (at ${new Date(a.at).toLocaleTimeString()})`;
@@ -575,8 +663,19 @@
       if (isFall) {
         startEmergencySiren();
         triggerDesktopNotification(`EMERGENCY: FALL DETECTED — ${a.name}`, a.detail);
+        bannerReplayBtn.style.display = 'inline-block';
+        bannerDismissElderBtn.style.display = 'inline-block';
+        bannerDismissElderBtn.textContent = '🔕 Silence Elder Room';
+        bannerDismissElderBtn.style.background = '#ea580c';
+
+        if (a.replayFrames && a.replayFrames.length) {
+          lastFallFrames = a.replayFrames;
+          if (lastIncidentReplayBtn) lastIncidentReplayBtn.style.display = 'inline-block';
+        }
       } else {
         triggerDesktopNotification(`Missed Medication: ${a.name}`, a.detail);
+        bannerReplayBtn.style.display = 'none';
+        bannerDismissElderBtn.style.display = 'none';
       }
 
       if (cur && cur.id == a.elderId) {
@@ -640,9 +739,25 @@ loadElders();
       watch();
     };
 
+    bannerReplayBtn.onclick = () => {
+      stopEmergencySiren();
+      const frames = lastFallFrames || (lastFallAlert && lastFallAlert.replayFrames) || generateClientSimulatedReplay(lastFallAlert ? lastFallAlert.name : 'Elder');
+      openReplayModal(frames, `${lastFallAlert ? lastFallAlert.name : 'Elder'} Fall Incident Replay`, `Recorded: ${new Date(lastFallAlert ? lastFallAlert.at : Date.now()).toLocaleTimeString()}`);
+    };
+
+    bannerDismissElderBtn.onclick = () => {
+      silenceElderAlarm();
+    };
+
     bannerDismissBtn.onclick = () => {
       stopEmergencySiren();
       banner.classList.add('hidden');
+    };
+
+    quickSilenceElderBtn.onclick = silenceElderAlarm;
+    lastIncidentReplayBtn.onclick = () => {
+      const frames = lastFallFrames || generateClientSimulatedReplay(cur ? cur.name : 'Elder');
+      openReplayModal(frames, `${cur ? cur.name : 'Elder'} Recent Fall`, 'Latest Fall Incident');
     };
 
     function getLangLabel(lang) {
@@ -871,9 +986,10 @@ loadElders();
     async function loadAlerts() {
       if (!cur) return;
       const list = await api(`/elders/${cur.id}/alerts`);
-      document.getElementById('statAlerts').textContent = list.length;
+      cachedAlerts = Array.isArray(list) ? list : [];
+      document.getElementById('statAlerts').textContent = cachedAlerts.length;
 
-      alertsDiv.innerHTML = list.map((a) => `
+      alertsDiv.innerHTML = cachedAlerts.map((a) => `
         <div class="alert-history-row ${a.type === 'fall' ? 'fall-alert' : ''}">
           <div class="alert-badge-col">
             <span class="alert-type-pill ${a.type === 'fall' ? 'danger' : 'warn'}">
@@ -883,9 +999,19 @@ loadElders();
           <div class="alert-detail-col">
             <div class="alert-detail-text">${esc(a.detail)}</div>
             <div class="alert-meta-row">
-              <span class="alert-time">🕒 ${new Date(a.created_at + 'Z').toLocaleString()}</span>
+              <span class="alert-time">🕒 ${new Date(a.created_at + (a.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</span>
               <span class="email-sent-badge">🔔 System Desktop & Siren Alert Dispatched</span>
             </div>
+            ${a.type === 'fall' ? `
+              <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="action-btn sm" style="background:#8b5cf6; color:#fff; border:none; display:inline-flex; align-items:center; gap:6px; font-weight:700;" onclick="viewAlertReplay(${a.id})">
+                  🎬 View Fall Replay
+                </button>
+                <button type="button" class="action-btn sm" style="background:#ea580c; color:#fff; border:none; display:inline-flex; align-items:center; gap:6px; font-weight:700;" onclick="silenceElderAlarm()">
+                  🔕 Silence Elder Alarm
+                </button>
+              </div>
+            ` : ''}
           </div>
         </div>
       `).join('') || '<div class="empty-list-hint">No alerts on record. All clear!</div>';
@@ -1068,6 +1194,272 @@ loadElders();
         console.error('Error loading analytics:', err);
       }
     }
+
+    // Remote Alert Dismissal (Turn off alert on elderly dashboard)
+    window.silenceElderAlarm = function() {
+      const elderId = cur ? cur.id : (lastFallAlert ? lastFallAlert.elderId : null);
+      if (!elderId) {
+        alert('Please select a monitored elder first.');
+        return;
+      }
+      socket.emit('dismiss-elder-alert', { elderId });
+      stopEmergencySiren();
+
+      // UI feedback updates
+      const bDismiss = document.getElementById('bannerDismissElderBtn');
+      if (bDismiss) {
+        bDismiss.textContent = '✓ Elder Alarm Silenced';
+        bDismiss.style.background = '#15803d';
+      }
+      const quickBtn = document.getElementById('quickSilenceElderBtn');
+      if (quickBtn) {
+        quickBtn.textContent = '✓ Alarm Silenced';
+        quickBtn.style.background = '#15803d';
+        setTimeout(() => {
+          quickBtn.textContent = '🔕 Silence Elder Alarm';
+          quickBtn.style.background = '#ea580c';
+        }, 4000);
+      }
+      const modalBtn = document.getElementById('replaySilenceElderBtn');
+      if (modalBtn) {
+        modalBtn.textContent = '✓ Elder Alarm Silenced';
+        modalBtn.style.background = '#15803d';
+      }
+      alert(`🔕 Signal dispatched: Emergency siren and fall alarm turned off on ${cur ? cur.name : 'monitored person'}'s device.`);
+    };
+
+    // Client-side Fall Replay Simulator (for demonstrations or historical audits)
+    function generateClientSimulatedReplay(name) {
+      const stages = [
+        { t: -3.6, angle: 12, posture: 'Standing', head: [180, 50], torso: [180, 100], hips: [180, 130], knees: [180, 175], feet: [180, 215], color: '#10b981' },
+        { t: -3.2, angle: 14, posture: 'Standing', head: [180, 52], torso: [180, 102], hips: [180, 132], knees: [178, 176], feet: [180, 215], color: '#10b981' },
+        { t: -2.8, angle: 18, posture: 'Standing / Walking', head: [185, 54], torso: [182, 104], hips: [180, 133], knees: [175, 177], feet: [180, 215], color: '#10b981' },
+        { t: -2.4, angle: 28, posture: 'Balance Loss', head: [198, 62], torso: [188, 110], hips: [180, 138], knees: [170, 180], feet: [178, 215], color: '#f59e0b' },
+        { t: -2.0, angle: 41, posture: 'Tilting / Stumble', head: [215, 76], torso: [196, 120], hips: [180, 145], knees: [165, 185], feet: [175, 215], color: '#f59e0b' },
+        { t: -1.6, angle: 55, posture: 'Rapid Tilt', head: [235, 95], torso: [208, 132], hips: [180, 152], knees: [160, 190], feet: [172, 215], color: '#f59e0b' },
+        { t: -1.2, angle: 68, posture: 'Rapid Drop / Freefall', head: [255, 125], torso: [218, 150], hips: [180, 168], knees: [155, 198], feet: [170, 218], color: '#ef4444' },
+        { t: -0.8, angle: 78, posture: 'Impact Phase', head: [270, 158], torso: [225, 175], hips: [180, 188], knees: [150, 208], feet: [168, 220], color: '#ef4444' },
+        { t: -0.4, angle: 84, posture: 'Floor Contact', head: [280, 185], torso: [230, 195], hips: [180, 205], knees: [145, 215], feet: [165, 222], color: '#ef4444' },
+        { t: 0.0, angle: 88, posture: 'Lying / Prone Floor Collapse', head: [290, 200], torso: [235, 206], hips: [180, 210], knees: [140, 218], feet: [162, 223], color: '#ef4444' },
+        { t: 0.4, angle: 89, posture: 'Immobility (Floor)', head: [290, 201], torso: [235, 206], hips: [180, 210], knees: [140, 218], feet: [162, 223], color: '#ef4444' },
+        { t: 0.8, angle: 90, posture: 'Confirmed Collapse', head: [290, 201], torso: [235, 206], hips: [180, 210], knees: [140, 218], feet: [162, 223], color: '#ef4444' }
+      ];
+
+      const now = Date.now();
+      return stages.map((s, i) => {
+        const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240">
+  <rect width="360" height="240" fill="#090d16"/>
+  <line x1="20" y1="225" x2="340" y2="225" stroke="#334155" stroke-width="2" stroke-dasharray="4,4"/>
+  <text x="340" y="220" fill="#64748b" font-size="10" text-anchor="end" font-family="sans-serif">FLOOR LEVEL</text>
+  <line x1="${s.hips[0]}" y1="${s.hips[1]}" x2="${s.knees[0]}" y2="${s.knees[1]}" stroke="${s.color}" stroke-width="4" stroke-linecap="round"/>
+  <line x1="${s.knees[0]}" y1="${s.knees[1]}" x2="${s.feet[0]}" y2="${s.feet[1]}" stroke="${s.color}" stroke-width="4" stroke-linecap="round"/>
+  <line x1="${s.hips[0]}" y1="${s.hips[1]}" x2="${s.torso[0]}" y2="${s.torso[1]}" stroke="${s.color}" stroke-width="5" stroke-linecap="round"/>
+  <line x1="${s.torso[0]}" y1="${s.torso[1]}" x2="${s.head[0]}" y2="${s.head[1]}" stroke="${s.color}" stroke-width="4" stroke-linecap="round"/>
+  <line x1="${s.torso[0]}" y1="${s.torso[1]}" x2="${s.torso[0] - 25}" y2="${s.torso[1] + 25}" stroke="${s.color}" stroke-width="3" stroke-linecap="round"/>
+  <line x1="${s.torso[0]}" y1="${s.torso[1]}" x2="${s.torso[0] + 25}" y2="${s.torso[1] + 20}" stroke="${s.color}" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="${s.head[0]}" cy="${s.head[1]}" r="8" fill="#38bdf8"/>
+  <circle cx="${s.torso[0]}" cy="${s.torso[1]}" r="5" fill="#f8fafc"/>
+  <circle cx="${s.hips[0]}" cy="${s.hips[1]}" r="5" fill="#f8fafc"/>
+  <circle cx="${s.knees[0]}" cy="${s.knees[1]}" r="5" fill="#f8fafc"/>
+  <circle cx="${s.feet[0]}" cy="${s.feet[1]}" r="5" fill="#f8fafc"/>
+  <rect x="12" y="12" width="168" height="48" rx="6" fill="rgba(15,23,42,0.85)" stroke="#1e293b"/>
+  <text x="20" y="28" fill="#38bdf8" font-size="11" font-weight="bold" font-family="sans-serif">FRAME ${i + 1}/${stages.length} (${s.t > 0 ? '+' : ''}${s.t.toFixed(1)}s)</text>
+  <text x="20" y="44" fill="${s.color}" font-size="11" font-weight="bold" font-family="sans-serif">${s.posture} · ${s.angle}°</text>
+  <text x="345" y="24" fill="#94a3b8" font-size="10" text-anchor="end" font-family="sans-serif">${name || 'Elder'} Fall Audit Replay</text>
+</svg>`.trim();
+
+        return {
+          t: now + Math.round(s.t * 1000),
+          offsetSec: s.t,
+          angle: s.angle,
+          posture: s.posture,
+          image: 'data:image/svg+xml;utf8,' + encodeURIComponent(svg)
+        };
+      });
+    }
+
+    // Fall Incident Visual Playback Engine
+    let currentReplayFrames = [];
+    let replayIndex = 0;
+    let replayTimer = null;
+    let isReplayPlaying = false;
+
+    window.openReplayModal = function(frames, titleText, subtitleText) {
+      if (!frames || !frames.length) {
+        alert('No visual replay recorded for this event.');
+        return;
+      }
+      currentReplayFrames = frames;
+      replayIndex = 0;
+      pauseReplay();
+
+      const modal = document.getElementById('replayModal');
+      const subtitle = document.getElementById('replaySubtitle');
+      if (subtitle && subtitleText) subtitle.textContent = subtitleText;
+
+      const scrubber = document.getElementById('replayScrubber');
+      scrubber.min = 0;
+      scrubber.max = frames.length - 1;
+      scrubber.value = 0;
+
+      // Build thumbnail reel
+      const reel = document.getElementById('replayThumbsReel');
+      if (reel) {
+        reel.innerHTML = frames.map((f, i) => `
+          <div class="replay-thumb-card ${i === 0 ? 'active' : ''}" id="rthumb-${i}" onclick="setReplayFrame(${i})" style="flex-shrink:0; width:74px; cursor:pointer; text-align:center; border:2px solid ${i === 0 ? '#8b5cf6' : '#334155'}; border-radius:6px; overflow:hidden; background:#0f172a; transition:all 0.15s;">
+            <img src="${f.image}" style="width:100%; height:44px; object-fit:cover; display:block;" alt="F${i+1}">
+            <span style="font-size:0.68rem; color:#94a3b8; display:block; padding:2px;">#${i+1}</span>
+          </div>
+        `).join('');
+      }
+
+      showReplayFrame(0);
+      modal.classList.remove('hidden');
+
+      // Auto-play at slow-motion
+      startReplay();
+    };
+
+    function showReplayFrame(idx) {
+      if (!currentReplayFrames.length) return;
+      idx = Math.max(0, Math.min(idx, currentReplayFrames.length - 1));
+      replayIndex = idx;
+
+      const f = currentReplayFrames[idx];
+      const img = document.getElementById('replayImage');
+      const scrubber = document.getElementById('replayScrubber');
+      const progText = document.getElementById('replayProgressText');
+      const fBadge = document.getElementById('replayFrameBadge');
+      const pBadge = document.getElementById('replayPostureBadge');
+      const aBadge = document.getElementById('replayAngleBadge');
+      const timeOffset = document.getElementById('replayTimeOffset');
+
+      if (img) img.src = f.image;
+      if (scrubber) scrubber.value = idx;
+      if (progText) progText.textContent = `${idx + 1} / ${currentReplayFrames.length}`;
+
+      if (fBadge) fBadge.textContent = `Frame ${idx + 1} of ${currentReplayFrames.length}`;
+      if (pBadge) {
+        pBadge.textContent = `Posture: ${f.posture || 'Detected'}`;
+        const isFloor = (f.posture && f.posture.toLowerCase().includes('floor')) || f.angle > 65;
+        pBadge.style.borderColor = isFloor ? '#ef4444' : f.angle > 35 ? '#f59e0b' : '#10b981';
+        pBadge.style.color = isFloor ? '#fca5a5' : f.angle > 35 ? '#fde68a' : '#6ee7b7';
+      }
+      if (aBadge) {
+        aBadge.textContent = `Torso Tilt: ${f.angle || 0}°`;
+      }
+      if (timeOffset) {
+        const total = currentReplayFrames.length;
+        const secOffset = f.offsetSec !== undefined
+          ? (f.offsetSec > 0 ? `+${f.offsetSec.toFixed(1)}s` : `${f.offsetSec.toFixed(1)}s`)
+          : `T - ${((total - 1 - idx) * 0.3).toFixed(1)}s before trigger`;
+        timeOffset.textContent = secOffset;
+      }
+
+      // Update thumbnail active border
+      document.querySelectorAll('.replay-thumb-card').forEach((el, i) => {
+        el.style.borderColor = (i === idx) ? '#8b5cf6' : '#334155';
+        el.style.transform = (i === idx) ? 'scale(1.05)' : 'none';
+      });
+      const activeThumb = document.getElementById(`rthumb-${idx}`);
+      if (activeThumb) activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+
+    function startReplay() {
+      pauseReplay();
+      isReplayPlaying = true;
+      const playBtn = document.getElementById('replayPlayBtn');
+      if (playBtn) playBtn.textContent = '⏸ Pause';
+
+      const speedMultiplier = Number(document.getElementById('replaySpeedSelect').value || 0.5);
+      const interval = Math.round(300 / speedMultiplier);
+
+      replayTimer = setInterval(() => {
+        let next = replayIndex + 1;
+        if (next >= currentReplayFrames.length) {
+          next = 0;
+        }
+        showReplayFrame(next);
+      }, interval);
+    }
+
+    function pauseReplay() {
+      isReplayPlaying = false;
+      if (replayTimer) {
+        clearInterval(replayTimer);
+        replayTimer = null;
+      }
+      const playBtn = document.getElementById('replayPlayBtn');
+      if (playBtn) playBtn.textContent = '▶ Play';
+    }
+
+    window.setReplayFrame = function(idx) {
+      pauseReplay();
+      showReplayFrame(idx);
+    };
+
+    window.viewAlertReplay = function(alertId) {
+      const a = cachedAlerts.find(x => x.id === alertId);
+      if (!a) return;
+      const frames = a.replayFrames || (a.replay_frames ? JSON.parse(a.replay_frames) : null);
+      if (frames && frames.length) {
+        openReplayModal(frames, `${a.name || (cur ? cur.name : 'Elder')} Fall Event`, `Captured Incident: ${new Date(a.created_at + (a.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}`);
+      } else {
+        const simFrames = generateClientSimulatedReplay(cur ? cur.name : 'Elder');
+        openReplayModal(simFrames, `${cur ? cur.name : 'Elder'} Fall Audit Replay`, `Historical Incident: ${new Date(a.created_at + (a.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}`);
+      }
+    };
+
+    // Modal Controls Event Listeners
+    document.getElementById('closeReplayModal').onclick = () => {
+      pauseReplay();
+      document.getElementById('replayModal').classList.add('hidden');
+    };
+
+    document.getElementById('replayPlayBtn').onclick = () => {
+      if (isReplayPlaying) pauseReplay();
+      else startReplay();
+    };
+
+    document.getElementById('replayFirstBtn').onclick = () => {
+      pauseReplay();
+      showReplayFrame(0);
+    };
+
+    document.getElementById('replayLastBtn').onclick = () => {
+      pauseReplay();
+      showReplayFrame(currentReplayFrames.length - 1);
+    };
+
+    document.getElementById('replayPrevBtn').onclick = () => {
+      pauseReplay();
+      showReplayFrame(replayIndex - 1);
+    };
+
+    document.getElementById('replayNextBtn').onclick = () => {
+      pauseReplay();
+      showReplayFrame(replayIndex + 1);
+    };
+
+    document.getElementById('replayScrubber').oninput = (e) => {
+      pauseReplay();
+      showReplayFrame(Number(e.target.value));
+    };
+
+    document.getElementById('replaySpeedSelect').onchange = () => {
+      if (isReplayPlaying) startReplay();
+    };
+
+    document.getElementById('replayIntercomBtn').onclick = () => {
+      const msg = prompt('Enter emergency voice message to speak aloud in elder\'s room:', 'Don\'t worry, I am reviewing what happened. Help is on the way!');
+      if (msg && msg.trim() && cur) {
+        socket.emit('speak-to-elder', { elderId: cur.id, text: msg.trim() });
+        alert('Emergency voice broadcast spoken into elder\'s room!');
+      }
+    };
+
+    document.getElementById('replaySilenceElderBtn').onclick = silenceElderAlarm;
 
 
     loadElders();

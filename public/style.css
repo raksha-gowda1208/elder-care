@@ -813,6 +813,23 @@ body.cg-body {
 .stage-ref-info strong { display: block; color: #94a3b8; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .stage-ref-info span { color: #f1f5f9; font-weight: 700; }
 
+/* Fall Incident Visual Replay Player */
+.replay-modal-card {
+  animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes modalPop {
+  0% { transform: scale(0.95); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.replay-thumb-card:hover {
+  border-color: #a78bfa !important;
+  transform: translateY(-2px);
+}
+.replay-thumb-card.active {
+  border-color: #8b5cf6 !important;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.45);
+}
+
 
 
 

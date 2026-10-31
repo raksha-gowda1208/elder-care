@@ -327,7 +327,43 @@ let lastDropAt = 0;
 let horizontalSince = 0;
 let lastFallAt = 0;
 let currentPosture = 'Standing';
+let currentTorsoAngle = 0;
 let reminderLoop = 0;
+
+// Rolling Circular Incident Buffer (Captures ~5.5s history before and during fall)
+const INCIDENT_BUFFER_MAX = 18;
+const incidentBuffer = [];
+let lastIncidentSampleTime = 0;
+
+function sampleIncidentFrame() {
+  const now = performance.now();
+  if (now - lastIncidentSampleTime < 280) return; // ~300ms intervals
+  lastIncidentSampleTime = now;
+  try {
+    if (cam.videoWidth > 0 && overlay.width > 0) {
+      const c = document.createElement('canvas');
+      c.width = 320;
+      c.height = Math.round(320 * (cam.videoHeight / cam.videoWidth || 0.75));
+      const cCtx = c.getContext('2d');
+      cCtx.drawImage(cam, 0, 0, c.width, c.height);
+      if (showSkeleton) {
+        cCtx.drawImage(overlay, 0, 0, c.width, c.height);
+      }
+      const dataUrl = c.toDataURL('image/jpeg', 0.5);
+      incidentBuffer.push({
+        t: Date.now(),
+        angle: Math.round(currentTorsoAngle || 0),
+        posture: currentPosture || 'Unknown',
+        image: dataUrl
+      });
+      while (incidentBuffer.length > INCIDENT_BUFFER_MAX) {
+        incidentBuffer.shift();
+      }
+    }
+  } catch (e) {
+    console.warn('[INCIDENT SAMPLE]', e);
+  }
+}
 
 function setStatus(text, kind = 'ok') {
   statText.textContent = text;
@@ -755,6 +791,7 @@ function analyzePose(landmarks, worldLandmarks) {
   }
 
   angleVal.textContent = Math.round(angle) + '°';
+  currentTorsoAngle = angle;
 
   // Record into sliding history window
   const torsoY = (sh.y + hp.y) / 2;
@@ -860,10 +897,50 @@ function triggerFall(detail) {
   playSiren();
   say('Fall detected! We are contacting your caregiver immediately.');
 
+  // Immediate frame capture into incident buffer
+  sampleIncidentFrame();
+  let replayFrames = incidentBuffer.slice();
+
+  // If buffer has few or no frames (e.g. at startup or simulation), ensure we have valid visual frames
+  if (replayFrames.length === 0 && cam.videoWidth > 0) {
+    try {
+      const c = document.createElement('canvas');
+      c.width = 320;
+      c.height = Math.round(320 * (cam.videoHeight / cam.videoWidth || 0.75));
+      const cCtx = c.getContext('2d');
+      cCtx.drawImage(cam, 0, 0, c.width, c.height);
+      cCtx.drawImage(overlay, 0, 0, c.width, c.height);
+      replayFrames.push({
+        t: Date.now(),
+        angle: Math.round(currentTorsoAngle || 85),
+        posture: currentPosture || 'Lying / Floor',
+        image: c.toDataURL('image/jpeg', 0.5)
+      });
+    } catch {}
+  }
+
   socket.emit('fall', {
-    detail: detail || 'Skeleton pose detected a sudden fall or lying posture on the floor'
+    detail: detail || 'Skeleton pose detected a sudden fall or lying posture on the floor',
+    replayFrames
   });
 }
+
+// Remote alert dismissal listener from caregiver
+socket.on('remote-dismiss-alarm', (data) => {
+  console.log('[ALERT] Received remote-dismiss-alarm from caregiver:', data);
+  fallEl.classList.add('hidden');
+  stopSiren();
+  try { speechSynthesis.cancel(); } catch {}
+  horizontalSince = 0;
+  setStatus('Alert silenced remotely by caregiver', 'ok');
+  const by = (data && data.by) ? data.by : 'Caregiver';
+  const msg = currentLang === 'kn'
+    ? `ಕಾಳಜಿ ವಹಿಸುವವರು ಎಚ್ಚರಿಕೆಯನ್ನು ಆಫ್ ಮಾಡಿದ್ದಾರೆ. ಧನ್ಯವಾದಗಳು, ಆರಾಮವಾಗಿರಿ.`
+    : currentLang === 'hi'
+    ? `केयरगिवर ने अलार्म बंद कर दिया है। शांत रहें, मदद आ रही है।`
+    : `Caregiver ${by} has acknowledged and silenced the alert. Please remain calm.`;
+  say(msg, currentLang);
+});
 
 okBtn.onclick = () => {
   fallEl.classList.add('hidden');
@@ -1033,6 +1110,7 @@ function onPoseResults(results) {
   }
 
   maybeRelayFrame();
+  sampleIncidentFrame();
 }
 
 // Start MediaPipe Pose

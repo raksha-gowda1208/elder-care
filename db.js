@@ -83,7 +83,8 @@ const migrations = [
   'ALTER TABLE elders ADD COLUMN photo TEXT',
   'ALTER TABLE elders ADD COLUMN preferred_lang TEXT DEFAULT "en"',
   'ALTER TABLE medications ADD COLUMN lang TEXT DEFAULT "en"',
-  'ALTER TABLE caregivers ADD COLUMN resend_api_key TEXT'
+  'ALTER TABLE caregivers ADD COLUMN resend_api_key TEXT',
+  'ALTER TABLE alerts ADD COLUMN replay_frames TEXT'
 ];
 
 for (const m of migrations) {
