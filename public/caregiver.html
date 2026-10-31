@@ -731,34 +731,49 @@ loadElders();
       }
     });
 
-    bannerWatchBtn.onclick = () => {
-      stopEmergencySiren();
-      banner.classList.add('hidden');
-      const camTab = document.querySelector('[data-tab="tab-camera"]');
-      if (camTab) camTab.click();
-      watch();
-    };
+    if (bannerWatchBtn) {
+      bannerWatchBtn.onclick = () => {
+        stopEmergencySiren();
+        banner.classList.add('hidden');
+        const camTab = document.querySelector('[data-tab="tab-camera"]');
+        if (camTab) camTab.click();
+        watch();
+      };
+    }
 
-    bannerReplayBtn.onclick = () => {
-      stopEmergencySiren();
-      const frames = lastFallFrames || (lastFallAlert && lastFallAlert.replayFrames) || generateClientSimulatedReplay(lastFallAlert ? lastFallAlert.name : 'Elder');
-      openReplayModal(frames, `${lastFallAlert ? lastFallAlert.name : 'Elder'} Fall Incident Replay`, `Recorded: ${new Date(lastFallAlert ? lastFallAlert.at : Date.now()).toLocaleTimeString()}`);
-    };
+    if (bannerReplayBtn) {
+      bannerReplayBtn.onclick = () => {
+        stopEmergencySiren();
+        const frames = lastFallFrames || (lastFallAlert && lastFallAlert.replayFrames) || generateClientSimulatedReplay(lastFallAlert ? lastFallAlert.name : 'Elder');
+        openReplayModal(frames, `${lastFallAlert ? lastFallAlert.name : 'Elder'} Fall Incident Replay`, `Recorded: ${new Date(lastFallAlert ? lastFallAlert.at : Date.now()).toLocaleTimeString()}`);
+      };
+    }
 
-    bannerDismissElderBtn.onclick = () => {
-      silenceElderAlarm();
-    };
+    if (bannerDismissElderBtn) {
+      bannerDismissElderBtn.onclick = () => {
+        silenceElderAlarm();
+      };
+    }
 
-    bannerDismissBtn.onclick = () => {
-      stopEmergencySiren();
-      banner.classList.add('hidden');
-    };
+    if (bannerDismissBtn) {
+      bannerDismissBtn.onclick = () => {
+        stopEmergencySiren();
+        banner.classList.add('hidden');
+      };
+    }
 
-    quickSilenceElderBtn.onclick = silenceElderAlarm;
-    lastIncidentReplayBtn.onclick = () => {
-      const frames = lastFallFrames || generateClientSimulatedReplay(cur ? cur.name : 'Elder');
-      openReplayModal(frames, `${cur ? cur.name : 'Elder'} Recent Fall`, 'Latest Fall Incident');
-    };
+    if (quickSilenceElderBtn) {
+      quickSilenceElderBtn.onclick = () => {
+        silenceElderAlarm();
+      };
+    }
+
+    if (lastIncidentReplayBtn) {
+      lastIncidentReplayBtn.onclick = () => {
+        const frames = lastFallFrames || generateClientSimulatedReplay(cur ? cur.name : 'Elder');
+        openReplayModal(frames, `${cur ? cur.name : 'Elder'} Recent Fall`, 'Latest Fall Incident');
+      };
+    }
 
     function getLangLabel(lang) {
       if (lang === 'kn') return '🇮🇳 ಕನ್ನಡ (Kannada)';
@@ -825,13 +840,24 @@ loadElders();
       pick(d.id);
     }
 
-    document.getElementById('addElder').onclick = addElder;
-    document.getElementById('toggleAddElderBtn').onclick = () => {
-      document.getElementById('addElderForm').classList.toggle('hidden');
-    };
-    document.getElementById('cancelAddElder').onclick = () => {
-      document.getElementById('addElderForm').classList.add('hidden');
-    };
+    const addElderBtn = document.getElementById('addElder');
+    if (addElderBtn) addElderBtn.onclick = addElder;
+
+    const toggleAddElderBtn = document.getElementById('toggleAddElderBtn');
+    if (toggleAddElderBtn) {
+      toggleAddElderBtn.onclick = () => {
+        const f = document.getElementById('addElderForm');
+        if (f) f.classList.toggle('hidden');
+      };
+    }
+
+    const cancelAddElderBtn = document.getElementById('cancelAddElder');
+    if (cancelAddElderBtn) {
+      cancelAddElderBtn.onclick = () => {
+        const f = document.getElementById('addElderForm');
+        if (f) f.classList.add('hidden');
+      };
+    }
 
     function pick(id) {
       cur = elders.find((e) => e.id == id);
@@ -1105,8 +1131,15 @@ loadElders();
 
     updateNotifBtn();
 
-    logout.onclick = () => { localStorage.clear(); location.href = '/'; };
-    document.getElementById('addMed').onclick = addMed;
+    const logoutBtn = document.getElementById('logout');
+    if (logoutBtn) {
+      logoutBtn.onclick = () => {
+        localStorage.clear();
+        location.href = '/';
+      };
+    }
+
+    if (addMedBtn) addMedBtn.onclick = addMed;
 
     window.pick = pick;
     window.delMed = delMed;
@@ -1196,7 +1229,7 @@ loadElders();
     }
 
     // Remote Alert Dismissal (Turn off alert on elderly dashboard)
-    window.silenceElderAlarm = function() {
+    function silenceElderAlarm() {
       const elderId = cur ? cur.id : (lastFallAlert ? lastFallAlert.elderId : null);
       if (!elderId) {
         alert('Please select a monitored elder first.');
@@ -1226,7 +1259,8 @@ loadElders();
         modalBtn.style.background = '#15803d';
       }
       alert(`🔕 Signal dispatched: Emergency siren and fall alarm turned off on ${cur ? cur.name : 'monitored person'}'s device.`);
-    };
+    }
+    window.silenceElderAlarm = silenceElderAlarm;
 
     // Client-side Fall Replay Simulator (for demonstrations or historical audits)
     function generateClientSimulatedReplay(name) {
@@ -1278,6 +1312,7 @@ loadElders();
         };
       });
     }
+    window.generateClientSimulatedReplay = generateClientSimulatedReplay;
 
     // Fall Incident Visual Playback Engine
     let currentReplayFrames = [];
@@ -1285,7 +1320,7 @@ loadElders();
     let replayTimer = null;
     let isReplayPlaying = false;
 
-    window.openReplayModal = function(frames, titleText, subtitleText) {
+    function openReplayModal(frames, titleText, subtitleText) {
       if (!frames || !frames.length) {
         alert('No visual replay recorded for this event.');
         return;
@@ -1299,9 +1334,11 @@ loadElders();
       if (subtitle && subtitleText) subtitle.textContent = subtitleText;
 
       const scrubber = document.getElementById('replayScrubber');
-      scrubber.min = 0;
-      scrubber.max = frames.length - 1;
-      scrubber.value = 0;
+      if (scrubber) {
+        scrubber.min = 0;
+        scrubber.max = frames.length - 1;
+        scrubber.value = 0;
+      }
 
       // Build thumbnail reel
       const reel = document.getElementById('replayThumbsReel');
@@ -1315,11 +1352,12 @@ loadElders();
       }
 
       showReplayFrame(0);
-      modal.classList.remove('hidden');
+      if (modal) modal.classList.remove('hidden');
 
       // Auto-play at slow-motion
       startReplay();
-    };
+    }
+    window.openReplayModal = openReplayModal;
 
     function showReplayFrame(idx) {
       if (!currentReplayFrames.length) return;
@@ -1372,7 +1410,8 @@ loadElders();
       const playBtn = document.getElementById('replayPlayBtn');
       if (playBtn) playBtn.textContent = '⏸ Pause';
 
-      const speedMultiplier = Number(document.getElementById('replaySpeedSelect').value || 0.5);
+      const speedEl = document.getElementById('replaySpeedSelect');
+      const speedMultiplier = Number((speedEl && speedEl.value) || 0.5);
       const interval = Math.round(300 / speedMultiplier);
 
       replayTimer = setInterval(() => {
@@ -1394,12 +1433,13 @@ loadElders();
       if (playBtn) playBtn.textContent = '▶ Play';
     }
 
-    window.setReplayFrame = function(idx) {
+    function setReplayFrame(idx) {
       pauseReplay();
       showReplayFrame(idx);
-    };
+    }
+    window.setReplayFrame = setReplayFrame;
 
-    window.viewAlertReplay = function(alertId) {
+    function viewAlertReplay(alertId) {
       const a = cachedAlerts.find(x => x.id === alertId);
       if (!a) return;
       const frames = a.replayFrames || (a.replay_frames ? JSON.parse(a.replay_frames) : null);
@@ -1409,49 +1449,60 @@ loadElders();
         const simFrames = generateClientSimulatedReplay(cur ? cur.name : 'Elder');
         openReplayModal(simFrames, `${cur ? cur.name : 'Elder'} Fall Audit Replay`, `Historical Incident: ${new Date(a.created_at + (a.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}`);
       }
-    };
+    }
+    window.viewAlertReplay = viewAlertReplay;
 
     // Modal Controls Event Listeners
-    document.getElementById('closeReplayModal').onclick = () => {
+    const closeReplayModalBtn = document.getElementById('closeReplayModal');
+    if (closeReplayModalBtn) closeReplayModalBtn.onclick = () => {
       pauseReplay();
-      document.getElementById('replayModal').classList.add('hidden');
+      const m = document.getElementById('replayModal');
+      if (m) m.classList.add('hidden');
     };
 
-    document.getElementById('replayPlayBtn').onclick = () => {
+    const replayPlayBtn = document.getElementById('replayPlayBtn');
+    if (replayPlayBtn) replayPlayBtn.onclick = () => {
       if (isReplayPlaying) pauseReplay();
       else startReplay();
     };
 
-    document.getElementById('replayFirstBtn').onclick = () => {
+    const replayFirstBtn = document.getElementById('replayFirstBtn');
+    if (replayFirstBtn) replayFirstBtn.onclick = () => {
       pauseReplay();
       showReplayFrame(0);
     };
 
-    document.getElementById('replayLastBtn').onclick = () => {
+    const replayLastBtn = document.getElementById('replayLastBtn');
+    if (replayLastBtn) replayLastBtn.onclick = () => {
       pauseReplay();
       showReplayFrame(currentReplayFrames.length - 1);
     };
 
-    document.getElementById('replayPrevBtn').onclick = () => {
+    const replayPrevBtn = document.getElementById('replayPrevBtn');
+    if (replayPrevBtn) replayPrevBtn.onclick = () => {
       pauseReplay();
       showReplayFrame(replayIndex - 1);
     };
 
-    document.getElementById('replayNextBtn').onclick = () => {
+    const replayNextBtn = document.getElementById('replayNextBtn');
+    if (replayNextBtn) replayNextBtn.onclick = () => {
       pauseReplay();
       showReplayFrame(replayIndex + 1);
     };
 
-    document.getElementById('replayScrubber').oninput = (e) => {
+    const replayScrubber = document.getElementById('replayScrubber');
+    if (replayScrubber) replayScrubber.oninput = (e) => {
       pauseReplay();
       showReplayFrame(Number(e.target.value));
     };
 
-    document.getElementById('replaySpeedSelect').onchange = () => {
+    const replaySpeedSelect = document.getElementById('replaySpeedSelect');
+    if (replaySpeedSelect) replaySpeedSelect.onchange = () => {
       if (isReplayPlaying) startReplay();
     };
 
-    document.getElementById('replayIntercomBtn').onclick = () => {
+    const replayIntercomBtn = document.getElementById('replayIntercomBtn');
+    if (replayIntercomBtn) replayIntercomBtn.onclick = () => {
       const msg = prompt('Enter emergency voice message to speak aloud in elder\'s room:', 'Don\'t worry, I am reviewing what happened. Help is on the way!');
       if (msg && msg.trim() && cur) {
         socket.emit('speak-to-elder', { elderId: cur.id, text: msg.trim() });
@@ -1459,7 +1510,8 @@ loadElders();
       }
     };
 
-    document.getElementById('replaySilenceElderBtn').onclick = silenceElderAlarm;
+    const replaySilenceElderBtn = document.getElementById('replaySilenceElderBtn');
+    if (replaySilenceElderBtn) replaySilenceElderBtn.onclick = silenceElderAlarm;
 
 
     loadElders();
