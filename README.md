@@ -249,9 +249,14 @@ A full 65+ page academic thesis and an IEEE conference research paper have been 
 
 ---
 
-## 📜 License
+## 📜 License & Intellectual Property
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+**Copyright © 2026 Raksha S. All Rights Reserved.**
+
+This software and associated documentation files are the proprietary academic research work of **Raksha S.** (Department of Computer Science & Engineering, APSCE).
+
+* **Academic & Evaluation Use**: Permitted solely for academic evaluation, peer review, and examination purposes at APSCE.
+* **Restrictions**: Unauthorized copying, reproduction, distribution, reverse engineering, or commercial exploitation of this codebase or its algorithm implementations without prior written permission from the author is strictly prohibited.
 
 ---
 

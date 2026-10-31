@@ -1,6 +1,9 @@
 {
  "name": "elder-care",
  "version": "1.0.0",
+ "private": true,
+ "license": "UNLICENSED",
+ "author": "Raksha S.",
  "description": "Caregiver and elderly dashboards with live camera, medication voice reminders, and fall alerts",
  "scripts": {
   "start": "node server.js"
