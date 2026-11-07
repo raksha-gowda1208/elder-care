@@ -6,7 +6,7 @@
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-BlazePose%20WASM-007ACC?logo=google&logoColor=white&style=for-the-badge)](https://developers.google.com/mediapipe)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-Sub--200ms%20Telemetry-010101?logo=socket.io&logoColor=white&style=for-the-badge)](https://socket.io/)
 [![SQLite3](https://img.shields.io/badge/SQLite3-WAL%20Journaling-003B57?logo=sqlite&logoColor=white&style=for-the-badge)](https://www.sqlite.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![License: Academic Research](https://img.shields.io/badge/License-Academic%20Research%20Only-crimson.svg?style=for-the-badge)](#-license--intellectual-property)
 
 ---
 
@@ -240,10 +240,11 @@ railway up
 
 ---
 
-## 📑 Research Paper & Academic Documentation
+## 📑 Research Papers & Academic Documentation
 
-A full 65+ page academic thesis and an IEEE conference research paper have been prepared for this project:
-* **IEEE Research Paper**: [`docs/EldrAI_Research_Paper.md`](docs/EldrAI_Research_Paper.md)
+A comprehensive 65+ page academic thesis and two IEEE conference research papers have been authored for this project:
+* **IEEE Research Paper 1 (System Architecture & Multilingual AAL)**: [`docs/EldrAI_Research_Paper.md`](docs/EldrAI_Research_Paper.md)
+* **IEEE Research Paper 2 (Kinematic Forensics & Closed-Loop Telecare Control)**: [`docs/EldrAI_Research_Paper_2_Forensic_Kinematics.md`](docs/EldrAI_Research_Paper_2_Forensic_Kinematics.md)
 * **Full Academic Thesis (PDF)**: [`docs/ElderCare_Project_Report_65Pages.pdf`](docs/ElderCare_Project_Report_65Pages.pdf)
 * **Architecture Diagrams & Flowcharts**: [`docs/figures/`](docs/figures/)
 
