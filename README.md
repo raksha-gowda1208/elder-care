@@ -242,9 +242,9 @@ railway up
 
 ## 📑 Research Papers & Academic Documentation
 
-A comprehensive 65+ page academic thesis and two IEEE conference research papers have been authored for this project:
-* **IEEE Research Paper 1 (System Architecture & Multilingual AAL)**: [`docs/EldrAI_Research_Paper.md`](docs/EldrAI_Research_Paper.md)
-* **IEEE Research Paper 2 (Kinematic Forensics & Closed-Loop Telecare Control)**: [`docs/EldrAI_Research_Paper_2_Forensic_Kinematics.md`](docs/EldrAI_Research_Paper_2_Forensic_Kinematics.md)
+A comprehensive 65+ page academic thesis and the final research papers have been authored for this project:
+* **Research Paper (IJEI Publication Final)**: [`docs/EldrAI_Research_Paper_IJEI_Final.docx`](docs/EldrAI_Research_Paper_IJEI_Final.docx)
+* **Research Paper (Full Author Edition)**: [`docs/My_EldrAI_Research_Paper.docx`](docs/My_EldrAI_Research_Paper.docx)
 * **Full Academic Thesis (PDF)**: [`docs/ElderCare_Project_Report_65Pages.pdf`](docs/ElderCare_Project_Report_65Pages.pdf)
 * **Architecture Diagrams & Flowcharts**: [`docs/figures/`](docs/figures/)
 
