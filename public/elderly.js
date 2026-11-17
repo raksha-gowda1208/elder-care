@@ -469,12 +469,27 @@ socket.on('watch', async ({ from }) => {
   }
 });
 
+let pendingCandidates = {};
 socket.on('signal', async ({ from, data }) => {
   const pc = peers[from];
   if (!pc) return;
   try {
-    if (data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-    if (data.ice && pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(data.ice));
+    if (!pendingCandidates[from]) pendingCandidates[from] = [];
+    if (data.sdp) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      while (pendingCandidates[from].length > 0) {
+        const cand = pendingCandidates[from].shift();
+        try { await pc.addIceCandidate(cand); } catch {}
+      }
+    }
+    if (data.ice) {
+      const candidate = new RTCIceCandidate(data.ice);
+      if (pc.remoteDescription && pc.remoteDescription.type) {
+        await pc.addIceCandidate(candidate);
+      } else {
+        pendingCandidates[from].push(candidate);
+      }
+    }
   } catch (e) {
     console.warn('[WebRTC] Signal candidate error:', e);
   }

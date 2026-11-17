@@ -705,12 +705,15 @@
     socket.on('elder-frame', ({ elderId, image }) => {
       if (cur && cur.id == elderId) {
         streamFallback.src = image;
-        streamFallback.classList.remove('hidden');
-        cameraStandbyNotice.classList.add('hidden');
-        cameraDot.className = 'live-dot-indicator pulse';
-        if (!v.srcObject) {
+        // Keep vision relay visible unless WebRTC has rendered actual frames
+        if (v.videoWidth === 0 || v.paused || pc?.iceConnectionState !== 'connected') {
+          v.style.zIndex = '1';
+          streamFallback.style.zIndex = '2';
+          streamFallback.classList.remove('hidden');
+          cameraStandbyNotice.classList.add('hidden');
           watchHint.textContent = 'Live (Vision Relay)';
         }
+        cameraDot.className = 'live-dot-indicator pulse';
         hudTime.textContent = 'Live ' + new Date().toLocaleTimeString();
       }
     });
@@ -1069,10 +1072,18 @@
 
     // Live Camera Monitoring (WebRTC with instant High-Speed Vision Relay)
     let watchTimeoutTimer = null;
+    let elderPeerSocketId = null;
+    let pendingCandidates = [];
+
     function watch() {
       if (!cur) return;
       watchHint.textContent = 'Connecting live camera…';
       cameraStandbyNotice.classList.add('hidden');
+
+      // Make sure streamFallback is ready to show frames immediately
+      streamFallback.classList.remove('hidden');
+      streamFallback.style.zIndex = '2';
+      v.style.zIndex = '1';
 
       // Request immediate snapshot from elder device
       socket.emit('request-frame', { elderId: cur.id });
@@ -1081,6 +1092,8 @@
         try { pc.close(); } catch {}
         pc = null;
       }
+
+      pendingCandidates = [];
 
       try {
         pc = new RTCPeerConnection({
@@ -1094,21 +1107,58 @@
           ]
         });
 
+        pc.onicecandidate = (e) => {
+          if (e.candidate && elderPeerSocketId) {
+            socket.emit('signal', { to: elderPeerSocketId, data: { ice: e.candidate } });
+          }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+          console.log('[WebRTC] ICE state:', pc.iceConnectionState);
+          if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+            v.style.zIndex = '1';
+            streamFallback.style.zIndex = '2';
+            streamFallback.classList.remove('hidden');
+            watchHint.textContent = 'Live (Vision Relay)';
+            socket.emit('request-frame', { elderId: cur.id });
+          }
+        };
+
         pc.addTransceiver('video', { direction: 'recvonly' });
+
         pc.ontrack = (e) => {
           if (watchTimeoutTimer) clearTimeout(watchTimeoutTimer);
           v.srcObject = e.streams[0];
-          v.style.zIndex = '3';
-          streamFallback.classList.add('hidden');
-          cameraDot.className = 'live-dot-indicator pulse';
-          watchHint.textContent = 'Live WebRTC Video';
+          v.muted = true;
+          const p = v.play();
+          if (p !== undefined) {
+            p.then(() => {
+              if (v.videoWidth > 0) {
+                v.style.zIndex = '3';
+                streamFallback.classList.add('hidden');
+                watchHint.textContent = 'Live WebRTC Video';
+              }
+            }).catch(() => {});
+          }
+        };
+
+        v.onplaying = () => {
+          if (v.videoWidth > 0) {
+            v.style.zIndex = '3';
+            streamFallback.classList.add('hidden');
+            cameraDot.className = 'live-dot-indicator pulse';
+            watchHint.textContent = 'Live WebRTC Video';
+          }
         };
 
         socket.emit('watch', { elderId: cur.id });
 
         if (watchTimeoutTimer) clearTimeout(watchTimeoutTimer);
         watchTimeoutTimer = setTimeout(() => {
-          if (!v.srcObject && cur) {
+          if (v.videoWidth === 0 && cur) {
+            v.style.zIndex = '1';
+            streamFallback.style.zIndex = '2';
+            streamFallback.classList.remove('hidden');
             watchHint.textContent = 'Live (Vision Relay)';
             socket.emit('request-frame', { elderId: cur.id });
           }
@@ -1121,16 +1171,27 @@
 
     socket.on('signal', async ({ from, data }) => {
       if (!pc) return;
+      elderPeerSocketId = from;
       try {
-        pc.onicecandidate = (e) => e.candidate && socket.emit('signal', { to: from, data: { ice: e.candidate } });
         if (data.sdp) {
           await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+          if (data.sdp.type === 'offer') {
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+          }
+          while (pendingCandidates.length > 0) {
+            const c = pendingCandidates.shift();
+            try { await pc.addIceCandidate(c); } catch {}
+          }
         }
-        if (data.ice && pc.remoteDescription) {
-          await pc.addIceCandidate(new RTCIceCandidate(data.ice));
+        if (data.ice) {
+          const candidate = new RTCIceCandidate(data.ice);
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(candidate);
+          } else {
+            pendingCandidates.push(candidate);
+          }
         }
       } catch (e) {
         console.warn('Caregiver signaling error:', e);
