@@ -408,23 +408,32 @@ function say(text, targetLang = currentLang) {
 }
 
 // WebRTC video sharing with caregiver & high-reliability snapshot relay
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  { urls: 'stun:stun.services.mozilla.com' }
+];
+
 let relayCanvas = null;
 function sendFrameRelay() {
   try {
-    if (!cam || cam.readyState < 2) return;
+    if (!cam || !stream || cam.videoWidth === 0) return;
     const vw = cam.videoWidth || 640;
     const vh = cam.videoHeight || 480;
-    if (!relayCanvas) {
+    if (!relayCanvas || relayCanvas.width !== 360) {
       relayCanvas = document.createElement('canvas');
-      relayCanvas.width = 480;
-      relayCanvas.height = Math.round(480 * (vh / vw || 0.75));
+      relayCanvas.width = 360;
+      relayCanvas.height = Math.round(360 * (vh / vw || 0.75));
     }
     const tctx = relayCanvas.getContext('2d');
     tctx.drawImage(cam, 0, 0, relayCanvas.width, relayCanvas.height);
     if (overlay && overlay.width > 0) {
       tctx.drawImage(overlay, 0, 0, relayCanvas.width, relayCanvas.height);
     }
-    const dataUrl = relayCanvas.toDataURL('image/jpeg', 0.55);
+    const dataUrl = relayCanvas.toDataURL('image/jpeg', 0.5);
     socket.emit('elder-frame', { image: dataUrl });
   } catch (err) {}
 }
@@ -432,6 +441,13 @@ function sendFrameRelay() {
 socket.on('request-frame', () => {
   sendFrameRelay();
 });
+
+// Continuous background relay every 350ms so video is ALWAYS streaming across devices
+setInterval(() => {
+  if (stream && cam && cam.videoWidth > 0) {
+    sendFrameRelay();
+  }
+}, 350);
 
 socket.on('watch', async ({ from }) => {
   // Immediately dispatch a frame snapshot so caregiver sees video in <50ms!
@@ -442,12 +458,7 @@ socket.on('watch', async ({ from }) => {
     if (peers[from]) {
       try { peers[from].close(); } catch {}
     }
-    const pc = peers[from] = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    });
+    const pc = peers[from] = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
     pc.onicecandidate = (e) => e.candidate && socket.emit('signal', { to: from, data: { ice: e.candidate } });
     const offer = await pc.createOffer();

@@ -642,6 +642,7 @@
         const target = document.getElementById(btn.dataset.tab);
         if (target) target.classList.add('active');
         if (btn.dataset.tab === 'tab-analytics') loadAnalytics();
+        if (btn.dataset.tab === 'tab-camera') watch();
       };
     });
 
@@ -1085,7 +1086,11 @@
         pc = new RTCPeerConnection({
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+            { urls: 'stun:stun.services.mozilla.com' }
           ]
         });
 
@@ -1093,7 +1098,7 @@
         pc.ontrack = (e) => {
           if (watchTimeoutTimer) clearTimeout(watchTimeoutTimer);
           v.srcObject = e.streams[0];
-          v.style.display = 'block';
+          v.style.zIndex = '3';
           streamFallback.classList.add('hidden');
           cameraDot.className = 'live-dot-indicator pulse';
           watchHint.textContent = 'Live WebRTC Video';
