@@ -700,21 +700,23 @@
       updateStats();
     });
 
-    // Real-Time Fallback Canvas Stream from elder device
+    // Real-Time High-Reliability Canvas Stream from elder device
     socket.on('elder-frame', ({ elderId, image }) => {
-      if (cur && cur.id === elderId) {
+      if (cur && cur.id == elderId) {
         streamFallback.src = image;
         streamFallback.classList.remove('hidden');
         cameraStandbyNotice.classList.add('hidden');
         cameraDot.className = 'live-dot-indicator pulse';
-        watchHint.textContent = 'Live (Vision Relay)';
-        hudTime.textContent = 'Frame ' + new Date().toLocaleTimeString();
+        if (!v.srcObject) {
+          watchHint.textContent = 'Live (Vision Relay)';
+        }
+        hudTime.textContent = 'Live ' + new Date().toLocaleTimeString();
       }
     });
 
     // Real-Time Posture Telemetry
     socket.on('elder-posture', ({ elderId, posture, angle, stability }) => {
-      if (cur && cur.id === elderId) {
+      if (cur && cur.id == elderId) {
         postureTelemetryPill.textContent = `Posture: ${posture} (${angle}°)`;
         postureTelemetryPill.className = 'telemetry-tag ' + (stability === 'Emergency' ? 'danger' : stability === 'Tilting' ? 'warn' : 'ok');
         hudPosture.textContent = `${posture} (${angle}°)`;
@@ -723,11 +725,13 @@
     });
 
     socket.on('elder-status', ({ elderId, online }) => {
-      
-loadElders();
-      if (cur && cur.id === elderId) {
+      loadElders();
+      if (cur && cur.id == elderId) {
         liveStatusPill.textContent = online ? 'Online' : 'Offline';
         liveStatusPill.className = 'live-pill ' + (online ? 'on' : 'off');
+        if (online) {
+          watch();
+        }
       }
     });
 
@@ -807,13 +811,16 @@ loadElders();
       updateStats();
 
       if (cur) {
-        const fresh = elders.find((e) => e.id === cur.id);
+        const fresh = elders.find((e) => e.id == cur.id);
         if (fresh) {
           cur = fresh;
           liveStatusPill.textContent = cur.online ? 'Online' : 'Offline';
           liveStatusPill.className = 'live-pill ' + (cur.online ? 'on' : 'off');
           pLangBadge.textContent = getLangLabel(cur.preferred_lang);
         }
+      } else if (elders.length > 0) {
+        // Auto-select first elder on login
+        pick(elders[0].id);
       }
     }
 
@@ -877,6 +884,10 @@ loadElders();
       loadElders();
       loadMeds();
       loadAlerts();
+      loadAnalytics();
+
+      // Automatically connect live camera
+      watch();
     }
 
     // Medication Management
@@ -1055,41 +1066,70 @@ loadElders();
       }
     };
 
-    // Live WebRTC Camera
+    // Live Camera Monitoring (WebRTC with instant High-Speed Vision Relay)
+    let watchTimeoutTimer = null;
     function watch() {
       if (!cur) return;
-      watchHint.textContent = 'Connecting WebRTC stream…';
+      watchHint.textContent = 'Connecting live camera…';
       cameraStandbyNotice.classList.add('hidden');
 
-      if (pc) pc.close();
-      pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-      });
+      // Request immediate snapshot from elder device
+      socket.emit('request-frame', { elderId: cur.id });
 
-      pc.addTransceiver('video', { direction: 'recvonly' });
-      pc.ontrack = (e) => {
-        v.srcObject = e.streams[0];
-        streamFallback.classList.add('hidden');
-        cameraDot.className = 'live-dot-indicator pulse';
-        watchHint.textContent = 'Live WebRTC Video';
-      };
+      if (pc) {
+        try { pc.close(); } catch {}
+        pc = null;
+      }
 
-      socket.emit('watch', { elderId: cur.id });
+      try {
+        pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        });
+
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.ontrack = (e) => {
+          if (watchTimeoutTimer) clearTimeout(watchTimeoutTimer);
+          v.srcObject = e.streams[0];
+          v.style.display = 'block';
+          streamFallback.classList.add('hidden');
+          cameraDot.className = 'live-dot-indicator pulse';
+          watchHint.textContent = 'Live WebRTC Video';
+        };
+
+        socket.emit('watch', { elderId: cur.id });
+
+        if (watchTimeoutTimer) clearTimeout(watchTimeoutTimer);
+        watchTimeoutTimer = setTimeout(() => {
+          if (!v.srcObject && cur) {
+            watchHint.textContent = 'Live (Vision Relay)';
+            socket.emit('request-frame', { elderId: cur.id });
+          }
+        }, 3000);
+      } catch (err) {
+        console.warn('WebRTC init failed, using vision relay:', err);
+        watchHint.textContent = 'Live (Vision Relay)';
+      }
     }
 
     socket.on('signal', async ({ from, data }) => {
       if (!pc) return;
-      pc.onicecandidate = (e) => e.candidate && socket.emit('signal', { to: from, data: { ice: e.candidate } });
-      if (data.sdp) {
-        await pc.setRemoteDescription(data.sdp);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+      try {
+        pc.onicecandidate = (e) => e.candidate && socket.emit('signal', { to: from, data: { ice: e.candidate } });
+        if (data.sdp) {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+        }
+        if (data.ice && pc.remoteDescription) {
+          await pc.addIceCandidate(new RTCIceCandidate(data.ice));
+        }
+      } catch (e) {
+        console.warn('Caregiver signaling error:', e);
       }
-      if (data.ice) pc.addIceCandidate(data.ice);
     });
 
     watchBtn.onclick = watch;

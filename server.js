@@ -623,6 +623,14 @@ io.on('connection', (socket) => {
     io.to(`elder:${elder.id}`).emit('watch', { from: socket.id });
   });
 
+  // Explicit frame request from caregiver
+  socket.on('request-frame', ({ elderId }) => {
+    if (user.role !== 'caregiver') return;
+    const elder = elderForUser(user, Number(elderId));
+    if (!elder) return;
+    io.to(`elder:${elder.id}`).emit('request-frame', { from: socket.id });
+  });
+
   // WebRTC signaling
   socket.on('signal', ({ to, data }) => {
     if (!to || !data) return;
@@ -634,7 +642,7 @@ io.on('connection', (socket) => {
     if (user.role !== 'elder') return;
     const elder = db.prepare('SELECT caregiver_id FROM elders WHERE id = ?').get(user.id);
     if (elder) {
-      emitToCaregiver(elder.caregiver_id, 'elder-frame', { elderId: user.id, image });
+      emitToCaregiver(elder.caregiver_id, 'elder-frame', { elderId: Number(user.id), image });
     }
   });
 
@@ -643,7 +651,7 @@ io.on('connection', (socket) => {
     if (user.role !== 'elder') return;
     const elder = db.prepare('SELECT caregiver_id FROM elders WHERE id = ?').get(user.id);
     if (elder) {
-      emitToCaregiver(elder.caregiver_id, 'elder-posture', { elderId: user.id, ...data });
+      emitToCaregiver(elder.caregiver_id, 'elder-posture', { elderId: Number(user.id), ...data });
     }
   });
 

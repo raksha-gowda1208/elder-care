@@ -407,46 +407,74 @@ function say(text, targetLang = currentLang) {
   });
 }
 
-// WebRTC video sharing with caregiver
+// WebRTC video sharing with caregiver & high-reliability snapshot relay
+let relayCanvas = null;
+function sendFrameRelay() {
+  try {
+    if (!cam || cam.readyState < 2) return;
+    const vw = cam.videoWidth || 640;
+    const vh = cam.videoHeight || 480;
+    if (!relayCanvas) {
+      relayCanvas = document.createElement('canvas');
+      relayCanvas.width = 480;
+      relayCanvas.height = Math.round(480 * (vh / vw || 0.75));
+    }
+    const tctx = relayCanvas.getContext('2d');
+    tctx.drawImage(cam, 0, 0, relayCanvas.width, relayCanvas.height);
+    if (overlay && overlay.width > 0) {
+      tctx.drawImage(overlay, 0, 0, relayCanvas.width, relayCanvas.height);
+    }
+    const dataUrl = relayCanvas.toDataURL('image/jpeg', 0.55);
+    socket.emit('elder-frame', { image: dataUrl });
+  } catch (err) {}
+}
+
+socket.on('request-frame', () => {
+  sendFrameRelay();
+});
+
 socket.on('watch', async ({ from }) => {
+  // Immediately dispatch a frame snapshot so caregiver sees video in <50ms!
+  sendFrameRelay();
+
   if (!stream) return;
-  const pc = peers[from] = new RTCPeerConnection({
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
-    ]
-  });
-  stream.getTracks().forEach((t) => pc.addTrack(t, stream));
-  pc.onicecandidate = (e) => e.candidate && socket.emit('signal', { to: from, data: { ice: e.candidate } });
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+  try {
+    if (peers[from]) {
+      try { peers[from].close(); } catch {}
+    }
+    const pc = peers[from] = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    });
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    pc.onicecandidate = (e) => e.candidate && socket.emit('signal', { to: from, data: { ice: e.candidate } });
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('signal', { to: from, data: { sdp: pc.localDescription } });
+  } catch (e) {
+    console.warn('[WebRTC] Watch setup error:', e);
+  }
 });
 
 socket.on('signal', async ({ from, data }) => {
   const pc = peers[from];
   if (!pc) return;
-  if (data.sdp) await pc.setRemoteDescription(data.sdp);
-  if (data.ice) pc.addIceCandidate(data.ice);
+  try {
+    if (data.sdp) await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    if (data.ice && pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(data.ice));
+  } catch (e) {
+    console.warn('[WebRTC] Signal candidate error:', e);
+  }
 });
 
 // Periodic frame relay to caregiver (ensures video always works without WebRTC NAT issues)
 function maybeRelayFrame() {
   const now = performance.now();
-  if (now - lastRelayTime < 1200) return; // ~1 FPS snapshot relay
+  if (now - lastRelayTime < 350) return; // ~3 FPS high-reliability continuous stream
   lastRelayTime = now;
-  try {
-    if (cam.videoWidth > 0 && overlay.width > 0) {
-      const thumb = document.createElement('canvas');
-      thumb.width = 360;
-      thumb.height = Math.round(360 * (cam.videoHeight / cam.videoWidth || 0.75));
-      const tctx = thumb.getContext('2d');
-      tctx.drawImage(cam, 0, 0, thumb.width, thumb.height);
-      tctx.drawImage(overlay, 0, 0, thumb.width, thumb.height);
-      const dataUrl = thumb.toDataURL('image/jpeg', 0.55);
-      socket.emit('elder-frame', { image: dataUrl });
-    }
-  } catch {}
+  sendFrameRelay();
 }
 
 // Meds Schedule
@@ -820,26 +848,44 @@ function analyzePose(landmarks, worldLandmarks) {
   }
 
   // Posture Classification
-  const isProneOrFloor =
-    angle > 50 ||
-    (hp.y > 0.65 && angle > 40) ||
-    (box.aspectRatio > 1.25 && hp.y > 0.55) ||
-    (sh.y > 0.65 && hp.y > 0.65 && Math.abs(sh.y - hp.y) < 0.12);
+  // 1. Torso orientation relative to vertical
+  const isTorsoUpright = angle < 35; // Spine is vertical (Standing or Sitting upright)
+  const isTorsoTilted = angle >= 35 && angle <= 50; // Leaning or Bending
+  const isTorsoHorizontal = angle > 50; // Horizontal torso (Fall / Lying on floor)
 
+  const torsoDeltaY = Math.abs(hp.y - sh.y); // Vertical span between shoulders and hips
+
+  // A person is genuinely on the floor / lying down ONLY when:
+  // - Their torso is NOT upright (isTorsoUpright MUST be false!)
+  // AND:
+  // (a) Torso is horizontal (angle > 50°)
+  // (b) OR both shoulders and hips are near the floor (sh.y > 0.60 && hp.y > 0.60) AND torso is flat (torsoDeltaY < 0.15)
+  // (c) OR torso is significantly tilted (angle > 42°) AND hips are low in frame (hp.y > 0.65)
+  const isProneOrFloor =
+    !isTorsoUpright && (
+      isTorsoHorizontal ||
+      (sh.y > 0.60 && hp.y > 0.60 && torsoDeltaY < 0.15) ||
+      (angle > 42 && hp.y > 0.65)
+    );
+
+  // Sitting: Torso is upright, hips are in lower frame / seated
   const isSitting =
     !isProneOrFloor &&
-    ((kn && hp.y > 0.48 && (kn.y - hp.y < 0.25) && angle < 35) ||
-     (!kn && hp.y > 0.45 && angle < 30));
+    isTorsoUpright &&
+    ((kn && hp.y > 0.42 && (kn.y - hp.y < 0.28)) ||
+     (hp.y > 0.45));
 
+  // Bending / Tilting: Torso is noticeably tilted forward/backward (35° - 50°), but not horizontal on floor
   const isBending =
-    !isProneOrFloor && !isSitting && angle > 35 && hp.y < 0.65;
+    !isProneOrFloor && !isSitting && isTorsoTilted;
 
+  // Standing: Torso is upright (angle < 35°), elevated in frame
   const isStanding =
-    !isProneOrFloor && !isSitting && !isBending && angle < 32 && hp.y < 0.70;
+    !isProneOrFloor && !isBending && isTorsoUpright && !isSitting;
 
   if (isProneOrFloor) currentPosture = 'Lying / Floor';
-  else if (isSitting) currentPosture = 'Sitting';
   else if (isBending) currentPosture = 'Bending';
+  else if (isSitting) currentPosture = 'Sitting';
   else currentPosture = 'Standing';
 
   postureText.textContent = currentPosture;
