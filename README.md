@@ -249,12 +249,10 @@ To deploy your own instance to Render:
 
 ---
 
-## 📑 Research Papers, Academic Thesis & Presentation Poster
+## 📑 Research Papers & Academic Documentation
 
-All academic documentation and project presentation materials are archived in the [`docs/`](docs/) directory:
+All academic documentation and research papers are archived in the [`docs/`](docs/) directory:
 
-* **APSCE Open Day Project Presentation Poster (HTML)**: [`docs/APSCE_Open_Day_Project_Poster.html`](docs/APSCE_Open_Day_Project_Poster.html) *(Print-ready, interactive A0/A1 landscape poster)*
-* **APSCE Open Day Project Poster Content**: [`docs/APSCE_Open_Day_Project_Poster_Content.md`](docs/APSCE_Open_Day_Project_Poster_Content.md)
 * **Research Paper (IJEI Publication Edition)**: [`docs/EldrAI_Research_Paper_IJEI_Final.docx`](docs/EldrAI_Research_Paper_IJEI_Final.docx)
 * **Research Paper (Full Author Edition)**: [`docs/My_EldrAI_Research_Paper.docx`](docs/My_EldrAI_Research_Paper.docx)
 * **Full Academic Thesis (65 Pages, PDF)**: [`docs/ElderCare_Project_Report_65Pages.pdf`](docs/ElderCare_Project_Report_65Pages.pdf)
