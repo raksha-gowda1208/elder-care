@@ -701,9 +701,16 @@
       updateStats();
     });
 
-    // Real-Time High-Reliability Canvas Stream from elder device
-    socket.on('elder-frame', ({ elderId, image }) => {
+    // Real-Time High-Reliability Canvas Stream with Sub-Second Latency & Stale Frame Dropping
+    let lastRenderedFrameTs = 0;
+    socket.on('elder-frame', ({ elderId, image, ts }) => {
       if (cur && cur.id == elderId) {
+        if (ts && ts < lastRenderedFrameTs) {
+          // Discard stale out-of-order frame to eliminate visual lag
+          return;
+        }
+        if (ts) lastRenderedFrameTs = ts;
+
         streamFallback.src = image;
         // Keep vision relay visible unless WebRTC has rendered actual frames
         if (v.videoWidth === 0 || v.paused || pc?.iceConnectionState !== 'connected') {
@@ -711,7 +718,10 @@
           streamFallback.style.zIndex = '2';
           streamFallback.classList.remove('hidden');
           cameraStandbyNotice.classList.add('hidden');
-          watchHint.textContent = 'Live (Vision Relay)';
+          const lag = ts ? Math.max(0, Date.now() - ts) : null;
+          watchHint.textContent = (lag !== null && lag < 2000)
+            ? `Live (Sync: ${lag}ms)`
+            : 'Live (Vision Relay)';
         }
         cameraDot.className = 'live-dot-indicator pulse';
         hudTime.textContent = 'Live ' + new Date().toLocaleTimeString();
@@ -1074,6 +1084,7 @@
     let watchTimeoutTimer = null;
     let elderPeerSocketId = null;
     let pendingCandidates = [];
+    let pendingOutgoingCandidates = [];
 
     function watch() {
       if (!cur) return;
@@ -1094,6 +1105,7 @@
       }
 
       pendingCandidates = [];
+      pendingOutgoingCandidates = [];
 
       try {
         pc = new RTCPeerConnection({
@@ -1108,8 +1120,11 @@
         });
 
         pc.onicecandidate = (e) => {
-          if (e.candidate && elderPeerSocketId) {
+          if (!e.candidate) return;
+          if (elderPeerSocketId) {
             socket.emit('signal', { to: elderPeerSocketId, data: { ice: e.candidate } });
+          } else {
+            pendingOutgoingCandidates.push(e.candidate);
           }
         };
 
@@ -1172,6 +1187,13 @@
     socket.on('signal', async ({ from, data }) => {
       if (!pc) return;
       elderPeerSocketId = from;
+
+      // Flush any queued outgoing candidates now that we know elder's peer socket ID
+      while (pendingOutgoingCandidates.length > 0) {
+        const c = pendingOutgoingCandidates.shift();
+        try { socket.emit('signal', { to: elderPeerSocketId, data: { ice: c } }); } catch {}
+      }
+
       try {
         if (data.sdp) {
           await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));

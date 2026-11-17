@@ -320,6 +320,10 @@ let isProcessingFrame = false;
 let frameCount = 0;
 let lastFpsTime = performance.now();
 let lastRelayTime = 0;
+let lastPostureEmitTime = 0;
+let lastSentPosture = '';
+let lastSentStability = '';
+let lastSentAngle = 0;
 
 // Biomechanical History
 const historyBuffer = [];
@@ -330,26 +334,33 @@ let currentPosture = 'Standing';
 let currentTorsoAngle = 0;
 let reminderLoop = 0;
 
-// Rolling Circular Incident Buffer (Captures ~5.5s history before and during fall)
-const INCIDENT_BUFFER_MAX = 18;
+// Rolling Circular Incident Buffer (Captures ~4.5s history before and during fall)
+const INCIDENT_BUFFER_MAX = 12;
 const incidentBuffer = [];
 let lastIncidentSampleTime = 0;
+let incidentCanvas = null;
 
 function sampleIncidentFrame() {
   const now = performance.now();
-  if (now - lastIncidentSampleTime < 280) return; // ~300ms intervals
+  if (now - lastIncidentSampleTime < 360) return; // ~360ms intervals (covers ~4.5s history)
   lastIncidentSampleTime = now;
   try {
-    if (cam.videoWidth > 0 && overlay.width > 0) {
-      const c = document.createElement('canvas');
-      c.width = 320;
-      c.height = Math.round(320 * (cam.videoHeight / cam.videoWidth || 0.75));
-      const cCtx = c.getContext('2d');
-      cCtx.drawImage(cam, 0, 0, c.width, c.height);
-      if (showSkeleton) {
-        cCtx.drawImage(overlay, 0, 0, c.width, c.height);
+    if (cam && cam.videoWidth > 0 && overlay && overlay.width > 0) {
+      const targetW = 260;
+      const targetH = Math.round(targetW * (cam.videoHeight / cam.videoWidth || 0.75));
+      if (!incidentCanvas) {
+        incidentCanvas = document.createElement('canvas');
       }
-      const dataUrl = c.toDataURL('image/jpeg', 0.5);
+      if (incidentCanvas.width !== targetW || incidentCanvas.height !== targetH) {
+        incidentCanvas.width = targetW;
+        incidentCanvas.height = targetH;
+      }
+      const cCtx = incidentCanvas.getContext('2d');
+      cCtx.drawImage(cam, 0, 0, targetW, targetH);
+      if (showSkeleton) {
+        cCtx.drawImage(overlay, 0, 0, targetW, targetH);
+      }
+      const dataUrl = incidentCanvas.toDataURL('image/jpeg', 0.40);
       incidentBuffer.push({
         t: Date.now(),
         angle: Math.round(currentTorsoAngle || 0),
@@ -418,40 +429,68 @@ const ICE_SERVERS = [
 ];
 
 let relayCanvas = null;
-function sendFrameRelay() {
+let relayInFlight = false;
+let pauseRelayUntil = 0;
+const RELAY_INTERVAL_MS = 250; // ~4 FPS ultra-low latency real-time stream
+
+function sendFrameRelay(force = false) {
+  const now = performance.now();
+  if (now < pauseRelayUntil) return;
+  if (!force && (now - lastRelayTime < RELAY_INTERVAL_MS || relayInFlight)) {
+    return;
+  }
+  if (!cam || !stream || cam.videoWidth === 0) return;
+
+  relayInFlight = true;
+  lastRelayTime = now;
+
   try {
-    if (!cam || !stream || cam.videoWidth === 0) return;
     const vw = cam.videoWidth || 640;
     const vh = cam.videoHeight || 480;
-    if (!relayCanvas || relayCanvas.width !== 360) {
+    const targetW = 280; // Optimized width (~8-12KB payload, prevents mobile uplink congestion)
+    const targetH = Math.round(targetW * (vh / vw || 0.75));
+
+    if (!relayCanvas) {
       relayCanvas = document.createElement('canvas');
-      relayCanvas.width = 360;
-      relayCanvas.height = Math.round(360 * (vh / vw || 0.75));
     }
+    if (relayCanvas.width !== targetW || relayCanvas.height !== targetH) {
+      relayCanvas.width = targetW;
+      relayCanvas.height = targetH;
+    }
+
     const tctx = relayCanvas.getContext('2d');
-    tctx.drawImage(cam, 0, 0, relayCanvas.width, relayCanvas.height);
-    if (overlay && overlay.width > 0) {
-      tctx.drawImage(overlay, 0, 0, relayCanvas.width, relayCanvas.height);
+    tctx.drawImage(cam, 0, 0, targetW, targetH);
+    if (showSkeleton && overlay && overlay.width > 0) {
+      tctx.drawImage(overlay, 0, 0, targetW, targetH);
     }
-    const dataUrl = relayCanvas.toDataURL('image/jpeg', 0.5);
-    socket.emit('elder-frame', { image: dataUrl });
-  } catch (err) {}
+
+    const dataUrl = relayCanvas.toDataURL('image/jpeg', 0.45);
+    socket.emit('elder-frame', { image: dataUrl, ts: Date.now() }, () => {
+      relayInFlight = false;
+    });
+
+    // Guard timeout so flag never gets permanently stuck if an ack drops
+    setTimeout(() => { relayInFlight = false; }, 380);
+  } catch (err) {
+    relayInFlight = false;
+  }
 }
 
 socket.on('request-frame', () => {
-  sendFrameRelay();
+  sendFrameRelay(true);
 });
 
-// Continuous background relay every 350ms so video is ALWAYS streaming across devices
+// Periodic fallback relay: only sends if no frame was sent recently (e.g. background tab)
 setInterval(() => {
-  if (stream && cam && cam.videoWidth > 0) {
+  const now = performance.now();
+  if (now - lastRelayTime >= 400 && stream && cam && cam.videoWidth > 0) {
     sendFrameRelay();
   }
-}, 350);
+}, 300);
 
 socket.on('watch', async ({ from }) => {
   // Immediately dispatch a frame snapshot so caregiver sees video in <50ms!
-  sendFrameRelay();
+  sendFrameRelay(true);
 
   if (!stream) return;
   try {
@@ -494,14 +533,6 @@ socket.on('signal', async ({ from, data }) => {
     console.warn('[WebRTC] Signal candidate error:', e);
   }
 });
-
-// Periodic frame relay to caregiver (ensures video always works without WebRTC NAT issues)
-function maybeRelayFrame() {
-  const now = performance.now();
-  if (now - lastRelayTime < 350) return; // ~3 FPS high-reliability continuous stream
-  lastRelayTime = now;
-  sendFrameRelay();
-}
 
 // Meds Schedule
 const loadMeds = async () => {
@@ -917,12 +948,25 @@ function analyzePose(landmarks, worldLandmarks) {
   postureText.textContent = currentPosture;
   postureBadge.className = 'telemetry-pill ' + (isProneOrFloor ? 'danger' : isBending ? 'warn' : 'ok');
 
-  // Broadcast posture telemetry to caregiver
-  socket.emit('elder-posture', {
-    posture: currentPosture,
-    angle: Math.round(angle),
-    stability: isProneOrFloor ? 'Emergency' : isBending ? 'Tilting' : 'Stable'
-  });
+  // Throttled broadcast of posture telemetry to caregiver (eliminates 30 emits/sec network congestion)
+  const stability = isProneOrFloor ? 'Emergency' : isBending ? 'Tilting' : 'Stable';
+  const roundedAngle = Math.round(angle);
+  const postureChanged = (currentPosture !== lastSentPosture || stability !== lastSentStability);
+  const timeSinceLastPosture = now - lastPostureEmitTime;
+  const angleDelta = Math.abs(roundedAngle - lastSentAngle);
+
+  if (postureChanged || (timeSinceLastPosture > 350 && angleDelta >= 2) || timeSinceLastPosture > 1500) {
+    lastPostureEmitTime = now;
+    lastSentPosture = currentPosture;
+    lastSentStability = stability;
+    lastSentAngle = roundedAngle;
+
+    socket.emit('elder-posture', {
+      posture: currentPosture,
+      angle: roundedAngle,
+      stability
+    });
+  }
 
   // Sudden Drop Velocity threshold
   const suddenDrop = (dropVelocity > 0.24 && maxDrop > 0.13) ||
@@ -969,6 +1013,9 @@ function triggerFall(detail) {
   playSiren();
   say('Fall detected! We are contacting your caregiver immediately.');
 
+  // Temporarily pause routine video relay for 1.5s to grant 100% bandwidth to emergency alert
+  pauseRelayUntil = performance.now() + 1500;
+
   // Immediate frame capture into incident buffer
   sampleIncidentFrame();
   let replayFrames = incidentBuffer.slice();
@@ -976,17 +1023,19 @@ function triggerFall(detail) {
   // If buffer has few or no frames (e.g. at startup or simulation), ensure we have valid visual frames
   if (replayFrames.length === 0 && cam.videoWidth > 0) {
     try {
-      const c = document.createElement('canvas');
-      c.width = 320;
-      c.height = Math.round(320 * (cam.videoHeight / cam.videoWidth || 0.75));
-      const cCtx = c.getContext('2d');
-      cCtx.drawImage(cam, 0, 0, c.width, c.height);
-      cCtx.drawImage(overlay, 0, 0, c.width, c.height);
+      const targetW = 260;
+      const targetH = Math.round(targetW * (cam.videoHeight / cam.videoWidth || 0.75));
+      if (!incidentCanvas) incidentCanvas = document.createElement('canvas');
+      incidentCanvas.width = targetW;
+      incidentCanvas.height = targetH;
+      const cCtx = incidentCanvas.getContext('2d');
+      cCtx.drawImage(cam, 0, 0, targetW, targetH);
+      if (overlay && overlay.width > 0) cCtx.drawImage(overlay, 0, 0, targetW, targetH);
       replayFrames.push({
         t: Date.now(),
         angle: Math.round(currentTorsoAngle || 85),
         posture: currentPosture || 'Lying / Floor',
-        image: c.toDataURL('image/jpeg', 0.5)
+        image: incidentCanvas.toDataURL('image/jpeg', 0.40)
       });
     } catch {}
   }
@@ -1181,7 +1230,7 @@ function onPoseResults(results) {
     postureBadge.className = 'telemetry-pill';
   }
 
-  maybeRelayFrame();
+  sendFrameRelay();
   sampleIncidentFrame();
 }
 

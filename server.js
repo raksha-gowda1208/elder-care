@@ -637,13 +637,18 @@ io.on('connection', (socket) => {
     io.to(to).emit('signal', { from: socket.id, data });
   });
 
-  // High-reliability canvas video frame relay fallback
-  socket.on('elder-frame', ({ image }) => {
-    if (user.role !== 'elder') return;
+  // High-reliability canvas video frame relay fallback with sub-second sync and ack
+  socket.on('elder-frame', (data, ack) => {
+    if (user.role !== 'elder' || !data || !data.image) return;
     const elder = db.prepare('SELECT caregiver_id FROM elders WHERE id = ?').get(user.id);
     if (elder) {
-      emitToCaregiver(elder.caregiver_id, 'elder-frame', { elderId: Number(user.id), image });
+      emitToCaregiver(elder.caregiver_id, 'elder-frame', {
+        elderId: Number(user.id),
+        image: data.image,
+        ts: data.ts || Date.now()
+      });
     }
+    if (typeof ack === 'function') ack();
   });
 
   // Telemetry relay (posture, angle, stability)
